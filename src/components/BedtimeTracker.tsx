@@ -5,6 +5,7 @@ import { useThemeStore } from '../store/themeStore';
 import { Moon, Clock, CheckCircle } from 'lucide-react-native';
 import { firestoreService } from '../services/firestoreService';
 import { authService } from '../services/authService';
+import { getArgentinaDateString } from '../utils/dateUtils';
 
 interface BedtimeTrackerProps {
     habitId: string;
@@ -28,7 +29,7 @@ export const BedtimeTracker: React.FC<BedtimeTrackerProps> = ({ habitId, onUpdat
             const user = authService.getCurrentUser();
             if (!user) return;
 
-            const today = new Date().toISOString().split('T')[0];
+            const today = getArgentinaDateString();
             const progress = await firestoreService.getDailyProgress(user.uid, today);
             
             if (progress) {
@@ -48,7 +49,7 @@ export const BedtimeTracker: React.FC<BedtimeTrackerProps> = ({ habitId, onUpdat
             const user = authService.getCurrentUser();
             if (!user) return;
 
-            const today = new Date().toISOString().split('T')[0];
+            const today = getArgentinaDateString();
             const progress = await firestoreService.getDailyProgress(user.uid, today) || {};
             
             const bedtimeHour = bedtimeDate.getHours();

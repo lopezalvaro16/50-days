@@ -4,6 +4,7 @@ import { SPACING, SIZES } from '../constants/theme';
 import { useThemeStore } from '../store/themeStore';
 import { firestoreService } from '../services/firestoreService';
 import { authService } from '../services/authService';
+import { getArgentinaDateString } from '../utils/dateUtils';
 
 interface ProgressCalendarProps {
     onDayPress?: (date: string) => void;
@@ -33,7 +34,7 @@ export const ProgressCalendar: React.FC<ProgressCalendarProps> = ({ onDayPress }
             // Load progress for each day in the month
             for (let day = 1; day <= endDate.getDate(); day++) {
                 const date = new Date(year, month, day);
-                const dateStr = date.toISOString().split('T')[0];
+                const dateStr = getArgentinaDateString(date);
                 
                 try {
                     const progress = await firestoreService.getDailyProgress(user.uid, dateStr);
@@ -79,7 +80,7 @@ export const ProgressCalendar: React.FC<ProgressCalendarProps> = ({ onDayPress }
         // Add all days of the month
         for (let day = 1; day <= daysInMonth; day++) {
             const date = new Date(year, month, day);
-            const dateStr = date.toISOString().split('T')[0];
+            const dateStr = getArgentinaDateString(date);
             days.push({
                 day,
                 date: dateStr,
@@ -126,7 +127,7 @@ export const ProgressCalendar: React.FC<ProgressCalendarProps> = ({ onDayPress }
                     }
 
                     const { day, date, progress } = dayData;
-                    const isToday = date === new Date().toISOString().split('T')[0];
+                    const isToday = date === getArgentinaDateString();
 
                     return (
                         <TouchableOpacity

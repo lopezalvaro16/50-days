@@ -9,6 +9,7 @@ import { ProgressCalendar } from '../../components/ProgressCalendar';
 import { WeeklyChart } from '../../components/WeeklyChart';
 import { InsightsCard } from '../../components/InsightsCard';
 import { ShareProgress } from '../../components/ShareProgress';
+import { getArgentinaDateString } from '../../utils/dateUtils';
 
 export default function StatsScreen() {
     const { colors, isDarkMode } = useThemeStore();
@@ -94,7 +95,7 @@ export default function StatsScreen() {
             const user = authService.getCurrentUser();
             if (!user) return;
 
-            const today = new Date().toISOString().split('T')[0];
+            const today = getArgentinaDateString();
             const progress = await firestoreService.getDailyProgress(user.uid, today);
             
             if (progress) {

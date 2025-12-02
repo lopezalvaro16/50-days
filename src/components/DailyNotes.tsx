@@ -5,6 +5,7 @@ import { useThemeStore } from '../store/themeStore';
 import { BookOpen, Save } from 'lucide-react-native';
 import { firestoreService } from '../services/firestoreService';
 import { authService } from '../services/authService';
+import { getArgentinaDateString } from '../utils/dateUtils';
 
 export const DailyNotes: React.FC = () => {
     const { colors } = useThemeStore();
@@ -21,7 +22,7 @@ export const DailyNotes: React.FC = () => {
             const user = authService.getCurrentUser();
             if (!user) return;
 
-            const today = new Date().toISOString().split('T')[0];
+            const today = getArgentinaDateString();
             const progress = await firestoreService.getDailyProgress(user.uid, today);
             
             if (progress) {
@@ -41,7 +42,7 @@ export const DailyNotes: React.FC = () => {
             if (!user) return;
 
             setIsSaving(true);
-            const today = new Date().toISOString().split('T')[0];
+            const today = getArgentinaDateString();
             const progress: Record<string, boolean | number | string> = await firestoreService.getDailyProgress(user.uid, today) || {};
             
             progress['daily_note'] = note;

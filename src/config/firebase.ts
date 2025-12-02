@@ -1,8 +1,18 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { initializeAuth, getAuth } from 'firebase/auth';
+import { initializeAuth, getAuth, Auth } from 'firebase/auth';
 import { initializeFirestore, getFirestore } from 'firebase/firestore';
-import { getReactNativePersistence } from '@firebase/auth/dist/rn';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Import getReactNativePersistence - Firebase v9+ exports it differently
+// Using dynamic import as fallback since TypeScript types might not include it
+let getReactNativePersistence: any;
+try {
+    // Try to import from firebase/auth
+    const authModule = require('firebase/auth');
+    getReactNativePersistence = authModule.getReactNativePersistence;
+} catch {
+    // If not available, we'll handle it in the auth initialization
+}
 
 const firebaseConfig = {
     apiKey: "AIzaSyDXSAXTbqN4ixgvlW3x_3_-4rFPwGODhfs",
@@ -18,13 +28,34 @@ const firebaseConfig = {
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
 // Initialize Auth with AsyncStorage persistence
-let auth;
-try {
+// IMPORTANT: For React Native, we MUST use initializeAuth with persistence
+// getAuth() doesn't support persistence in React Native
+let auth: Auth;
+if (getReactNativePersistence) {
+    try {
+        // Always try to initialize with persistence first
+        // This is the correct way for React Native
+        auth = initializeAuth(app, {
+            persistence: getReactNativePersistence(AsyncStorage)
+        });
+    } catch (error: any) {
+        // If auth is already initialized, we can't change it
+        // This happens if getAuth() was called before initializeAuth()
+        if (error?.code === 'auth/already-initialized') {
+            // Auth was already initialized (probably without persistence)
+            // We can't change it now, but we'll use it anyway
+            auth = getAuth(app);
+            console.warn('Firebase Auth was already initialized. Persistence may not be enabled. Please restart the app.');
+        } else {
+            // Some other error, try to get existing auth
+            console.error('Error initializing Auth:', error);
+            auth = getAuth(app);
+        }
+    }
+} else {
+    // getReactNativePersistence not available, use getAuth as fallback
+    console.warn('getReactNativePersistence not available. Auth persistence may not work.');
     auth = getAuth(app);
-} catch {
-    auth = initializeAuth(app, {
-        persistence: getReactNativePersistence(AsyncStorage)
-    });
 }
 
 // Initialize Firestore

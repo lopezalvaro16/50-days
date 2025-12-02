@@ -4,6 +4,7 @@ import { SPACING, SIZES } from '../constants/theme';
 import { useThemeStore } from '../store/themeStore';
 import { firestoreService } from '../services/firestoreService';
 import { authService } from '../services/authService';
+import { getArgentinaDateString } from '../utils/dateUtils';
 
 interface WeeklyChartProps {
     days?: number; // Number of days to show (default 7 for week)
@@ -29,7 +30,7 @@ export const WeeklyChart: React.FC<WeeklyChartProps> = ({ days = 7 }) => {
             for (let i = days - 1; i >= 0; i--) {
                 const date = new Date(today);
                 date.setDate(date.getDate() - i);
-                const dateStr = date.toISOString().split('T')[0];
+                const dateStr = getArgentinaDateString(date);
 
                 try {
                     const progress = await firestoreService.getDailyProgress(user.uid, dateStr);

@@ -6,6 +6,7 @@ import { useHabitStore } from '../store/habitStore';
 import { Droplet, Plus, Minus } from 'lucide-react-native';
 import { firestoreService } from '../services/firestoreService';
 import { authService } from '../services/authService';
+import { getArgentinaDateString } from '../utils/dateUtils';
 
 interface WaterTrackerProps {
     habitId: string;
@@ -45,7 +46,7 @@ export const WaterTracker: React.FC<WaterTrackerProps> = ({ habitId, onUpdate })
             const user = authService.getCurrentUser();
             if (!user) return;
 
-            const today = new Date().toISOString().split('T')[0];
+            const today = getArgentinaDateString();
             const progress = await firestoreService.getDailyProgress(user.uid, today);
             
             if (progress) {
@@ -71,7 +72,7 @@ export const WaterTracker: React.FC<WaterTrackerProps> = ({ habitId, onUpdate })
             const user = authService.getCurrentUser();
             if (!user) return;
 
-            const today = new Date().toISOString().split('T')[0];
+            const today = getArgentinaDateString();
             const isComplete = newGlasses >= GLASSES_GOAL;
             
             // Update store state FIRST (optimistic update) - skip Firestore save

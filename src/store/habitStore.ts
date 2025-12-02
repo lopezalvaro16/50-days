@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { firestoreService } from '../services/firestoreService';
 import { authService } from '../services/authService';
 import { offlineService } from '../services/offlineService';
+import { getArgentinaDateString, getYesterdayArgentinaDateString } from '../utils/dateUtils';
 
 export interface Habit {
     id: string;
@@ -78,52 +79,59 @@ export const useHabitStore = create<HabitState>((set, get) => ({
 
     toggleHabit: async (id) => {
         const user = authService.getCurrentUser();
-        if (!user) return;
+        if (!user) {
+            return;
+        }
+
+        // Get current state BEFORE updating
+        const currentState = get();
+        const habitToToggle = currentState.habits.find(h => h.id === id);
+        if (!habitToToggle) {
+            return;
+        }
+
+        const newCompletedState = !habitToToggle.isCompleted;
 
         // Optimistic Update (UI updates immediately)
         set((state) => ({
             habits: state.habits.map((habit) =>
-                habit.id === id ? { ...habit, isCompleted: !habit.isCompleted } : habit
+                habit.id === id ? { ...habit, isCompleted: newCompletedState } : habit
             ),
         }));
 
-        // Sync with Firestore
+        // Get updated state after setting
         const { habits } = get();
-        const today = new Date().toISOString().split('T')[0];
+        const today = getArgentinaDateString();
         const habitsMap = habits.reduce((acc, habit) => ({
             ...acc,
             [habit.id]: habit.isCompleted
         }), {});
 
         try {
+            // Try to save to Firestore
+            await firestoreService.saveDailyProgress(user.uid, today, habitsMap);
+        } catch (error: any) {
+            // If offline or error, save locally
             try {
-                try {
-                    await firestoreService.saveDailyProgress(user.uid, today, habitsMap);
-                } catch (error) {
-                    // If offline, save locally
-                    console.log('Offline - saving locally');
-                    await offlineService.saveOfflineProgress(today, habitsMap);
-                }
-            } catch (error) {
-                // If offline, save locally
-                console.log('Offline - saving locally');
                 await offlineService.saveOfflineProgress(today, habitsMap);
+            } catch (localError) {
+                console.error('Error saving progress:', localError);
             }
+        }
 
-            // Check if all habits are completed → Update streak
+        // Check if all habits are completed → Update streak
+        try {
             const allCompleted = habits.every(h => h.isCompleted);
             if (allCompleted) {
                 const userProfile = await firestoreService.getUserProfile(user.uid);
                 if (userProfile) {
                     const lastCompleted = userProfile.lastCompletedDate;
-                    const yesterday = new Date();
-                    yesterday.setDate(yesterday.getDate() - 1);
-                    const yesterdayStr = yesterday.toISOString().split('T')[0];
+                    const yesterdayStr = getYesterdayArgentinaDateString();
 
                     // Calculate new streak
                     let newStreak = 1;
                     if (lastCompleted) {
-                        const lastCompletedStr = lastCompleted.toISOString().split('T')[0];
+                        const lastCompletedStr = getArgentinaDateString(lastCompleted);
                         if (lastCompletedStr === yesterdayStr) {
                             // Consecutive day
                             newStreak = userProfile.currentStreak + 1;
@@ -133,8 +141,8 @@ export const useHabitStore = create<HabitState>((set, get) => ({
                     await firestoreService.updateStreak(user.uid, newStreak, new Date());
                 }
             }
-        } catch (error) {
-            console.error('Error saving progress:', error);
+        } catch (streakError) {
+            console.error('Error updating streak:', streakError);
         }
     },
 
@@ -156,7 +164,7 @@ export const useHabitStore = create<HabitState>((set, get) => ({
 
         // Sync with Firestore - preserve existing data (like water count)
         const { habits } = get();
-        const today = new Date().toISOString().split('T')[0];
+        const today = getArgentinaDateString();
 
         try {
             // Get existing progress to preserve additional data (like water count)
@@ -172,7 +180,6 @@ export const useHabitStore = create<HabitState>((set, get) => ({
                 await firestoreService.saveDailyProgress(user.uid, today, habitsMap);
             } catch (error) {
                 // If offline, save locally
-                console.log('Offline - saving locally');
                 await offlineService.saveOfflineProgress(today, habitsMap);
             }
 
@@ -182,14 +189,12 @@ export const useHabitStore = create<HabitState>((set, get) => ({
                 const userProfile = await firestoreService.getUserProfile(user.uid);
                 if (userProfile) {
                     const lastCompleted = userProfile.lastCompletedDate;
-                    const yesterday = new Date();
-                    yesterday.setDate(yesterday.getDate() - 1);
-                    const yesterdayStr = yesterday.toISOString().split('T')[0];
+                    const yesterdayStr = getYesterdayArgentinaDateString();
 
                     // Calculate new streak
                     let newStreak = 1;
                     if (lastCompleted) {
-                        const lastCompletedStr = lastCompleted.toISOString().split('T')[0];
+                        const lastCompletedStr = getArgentinaDateString(lastCompleted);
                         if (lastCompletedStr === yesterdayStr) {
                             // Consecutive day
                             newStreak = userProfile.currentStreak + 1;
@@ -212,48 +217,51 @@ export const useHabitStore = create<HabitState>((set, get) => ({
             return;
         }
 
-        const today = new Date().toISOString().split('T')[0];
+        const today = getArgentinaDateString();
 
         try {
             // 1. Try to load from Firestore first
             let savedHabits: Record<string, boolean | number | string> | null = null;
             try {
                 savedHabits = await firestoreService.getDailyProgress(user.uid, today);
-            } catch (error) {
+            } catch (error: any) {
                 // If offline, try to load from local storage
-                console.log('Offline - loading from local storage');
-                savedHabits = await offlineService.getOfflineProgress(today);
+                try {
+                    savedHabits = await offlineService.getOfflineProgress(today);
+                } catch (localError) {
+                    // Ignore local storage errors
+                }
             }
 
-            if (savedHabits) {
+            if (savedHabits && Object.keys(savedHabits).length > 0) {
                 // Apply saved state to initial habits
-                set({
-                    habits: INITIAL_HABITS.map(h => ({
-                        ...h,
-                        isCompleted: !!savedHabits[h.id]
-                    }))
-                });
+                const updatedHabits = INITIAL_HABITS.map(h => ({
+                    ...h,
+                    isCompleted: !!savedHabits![h.id]
+                }));
+                set({ habits: updatedHabits });
             } else {
                 // New day → Reset habits and check if streak should continue
                 set({ habits: INITIAL_HABITS });
 
-                const userProfile = await firestoreService.getUserProfile(user.uid);
-                if (userProfile && userProfile.lastCompletedDate) {
-                    const lastCompleted = userProfile.lastCompletedDate;
-                    const yesterday = new Date();
-                    yesterday.setDate(yesterday.getDate() - 1);
-                    const yesterdayStr = yesterday.toISOString().split('T')[0];
-                    const lastCompletedStr = lastCompleted.toISOString().split('T')[0];
+                try {
+                    const userProfile = await firestoreService.getUserProfile(user.uid);
+                    if (userProfile && userProfile.lastCompletedDate) {
+                        const lastCompleted = userProfile.lastCompletedDate;
+                        const yesterdayStr = getYesterdayArgentinaDateString();
+                        const lastCompletedStr = getArgentinaDateString(lastCompleted);
 
-                    // If they didn't complete yesterday, reset streak
-                    if (lastCompletedStr !== yesterdayStr && lastCompletedStr !== today) {
-                        await firestoreService.updateStreak(user.uid, 0, lastCompleted);
+                        // If they didn't complete yesterday, reset streak
+                        if (lastCompletedStr !== yesterdayStr && lastCompletedStr !== today) {
+                            await firestoreService.updateStreak(user.uid, 0, lastCompleted);
+                        }
                     }
+                } catch (profileError) {
+                    console.error('Error checking user profile:', profileError);
                 }
             }
         } catch (error: any) {
             // If offline, try to load from local storage
-            console.log('Working offline - trying local storage');
             try {
                 const localProgress = await offlineService.getOfflineProgress(today);
                 if (localProgress) {
@@ -267,6 +275,7 @@ export const useHabitStore = create<HabitState>((set, get) => ({
                     set({ habits: INITIAL_HABITS });
                 }
             } catch (localError) {
+                console.error('Error loading habits:', localError);
                 set({ habits: INITIAL_HABITS });
             }
         } finally {

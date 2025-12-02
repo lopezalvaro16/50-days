@@ -5,6 +5,7 @@ import { useThemeStore } from '../store/themeStore';
 import { firestoreService } from '../services/firestoreService';
 import { authService } from '../services/authService';
 import { TrendingUp, Calendar, Target, Award } from 'lucide-react-native';
+import { getArgentinaDateString } from '../utils/dateUtils';
 
 export const InsightsCard: React.FC = () => {
     const { colors } = useThemeStore();
@@ -38,7 +39,7 @@ export const InsightsCard: React.FC = () => {
             for (let i = 0; i < 7; i++) {
                 const date = new Date(today);
                 date.setDate(date.getDate() - i);
-                const dateStr = date.toISOString().split('T')[0];
+                const dateStr = getArgentinaDateString(date);
 
                 try {
                     const progress = await firestoreService.getDailyProgress(user.uid, dateStr);
@@ -84,10 +85,14 @@ export const InsightsCard: React.FC = () => {
     };
 
     const formatDate = (dateStr: string) => {
-        const date = new Date(dateStr);
-        const day = date.getDate();
-        const month = date.toLocaleDateString('es-AR', { month: 'short' });
-        return `${day} ${month}`;
+        // Parse the date string (YYYY-MM-DD) and format it for Argentina
+        const [year, month, day] = dateStr.split('-').map(Number);
+        const date = new Date(year, month - 1, day); // month is 0-indexed
+        
+        const monthNames = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 
+                           'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+        
+        return `${day} ${monthNames[month - 1]}`;
     };
 
     const getInsightMessage = () => {

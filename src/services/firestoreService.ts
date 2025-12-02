@@ -53,7 +53,8 @@ export const firestoreService = {
     },
 
     saveDailyProgress: async (uid: string, date: string, habits: Record<string, boolean | number | string>) => {
-        const progressRef = doc(db, `users/${uid}/dailyProgress`, date);
+        // Correct path for subcollection: users/{uid}/dailyProgress/{date}
+        const progressRef = doc(db, 'users', uid, 'dailyProgress', date);
         await setDoc(progressRef, {
             date,
             habits,
@@ -62,10 +63,12 @@ export const firestoreService = {
     },
 
     getDailyProgress: async (uid: string, date: string): Promise<Record<string, boolean | number | string> | null> => {
-        const progressRef = doc(db, `users/${uid}/dailyProgress`, date);
+        // Correct path for subcollection: users/{uid}/dailyProgress/{date}
+        const progressRef = doc(db, 'users', uid, 'dailyProgress', date);
         const snap = await getDoc(progressRef);
         if (snap.exists()) {
-            return snap.data().habits;
+            const data = snap.data();
+            return data.habits || null;
         }
         return null;
     },

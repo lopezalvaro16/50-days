@@ -13,6 +13,7 @@ import { DailyNotes } from '../../components/DailyNotes';
 import { OfflineIndicator } from '../../components/OfflineIndicator';
 import { firestoreService } from '../../services/firestoreService';
 import { authService } from '../../services/authService';
+import { offlineService } from '../../services/offlineService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function DashboardScreen() {
@@ -34,6 +35,13 @@ export default function DashboardScreen() {
                 const user = authService.getCurrentUser();
                 if (!user) return;
 
+                // Sync any pending offline progress first
+                try {
+                    await offlineService.syncPendingProgress();
+                } catch (syncError) {
+                    // Silently fail - offline sync will retry later
+                }
+
                 const profile = await firestoreService.getUserProfile(user.uid);
 
                 if (profile) {
@@ -48,7 +56,7 @@ export default function DashboardScreen() {
                     setDayNumber(diffDays || 1);
                 }
             } catch (error) {
-                console.log('Error cargando datos:', error);
+                // Silently fail - stats will load on next refresh
             }
         }
 
@@ -64,7 +72,7 @@ export default function DashboardScreen() {
                 setShowOnboarding(true);
             }
         } catch (error) {
-            console.log('Error checking onboarding:', error);
+            // Silently fail - onboarding will show on next app start
         }
     };
 
@@ -73,7 +81,7 @@ export default function DashboardScreen() {
             await AsyncStorage.setItem('has_seen_onboarding', 'true');
             setShowOnboarding(false);
         } catch (error) {
-            console.log('Error saving onboarding:', error);
+            // Silently fail - onboarding preference will be lost
         }
     };
 
@@ -114,7 +122,7 @@ export default function DashboardScreen() {
                 }
             }
         } catch (error) {
-            console.log('Error refreshing:', error);
+            // Silently fail - refresh will retry on next pull
         } finally {
             setRefreshing(false);
         }

@@ -1,12 +1,21 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { COLORS, SPACING, SIZES } from '../constants/theme';
 import { Button } from '../components/Button';
 import { Flame } from 'lucide-react-native';
+import { authService } from '../services/authService';
 
 export default function WelcomeScreen() {
     const router = useRouter();
+
+    // Redirect if user is already logged in
+    useEffect(() => {
+        const user = authService.getCurrentUser();
+        if (user) {
+            router.replace('/(tabs)');
+        }
+    }, [router]);
 
     return (
         <View style={styles.container}>

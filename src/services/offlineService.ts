@@ -20,7 +20,7 @@ export const offlineService = {
                 await AsyncStorage.setItem(PENDING_SYNC_KEY, JSON.stringify(dates));
             }
         } catch (error) {
-            console.log('Error saving offline progress:', error);
+            // Silently fail - offline progress may be lost
         }
     },
 
@@ -31,7 +31,6 @@ export const offlineService = {
             const data = await AsyncStorage.getItem(key);
             return data ? JSON.parse(data) : null;
         } catch (error) {
-            console.log('Error getting offline progress:', error);
             return null;
         }
     },
@@ -56,7 +55,7 @@ export const offlineService = {
                         syncedDates.push(date);
                     }
                 } catch (error) {
-                    console.log(`Error syncing date ${date}:`, error);
+                    // Continue with next date
                 }
             }
 
@@ -76,7 +75,6 @@ export const offlineService = {
 
             return syncedDates.length;
         } catch (error) {
-            console.log('Error syncing pending progress:', error);
             return 0;
         }
     },

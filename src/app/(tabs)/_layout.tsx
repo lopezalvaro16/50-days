@@ -1,11 +1,13 @@
 import React from 'react';
-import { View } from 'react-native';
+import { View, Platform } from 'react-native';
 import { Tabs } from 'expo-router';
 import { useThemeStore } from '../../store/themeStore';
 import { Home, BarChart2, Settings, User, ArrowUp } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function TabLayout() {
     const { colors } = useThemeStore();
+    const insets = useSafeAreaInsets();
 
     return (
         <Tabs
@@ -14,8 +16,8 @@ export default function TabLayout() {
                 tabBarStyle: {
                     backgroundColor: colors.surface,
                     borderTopColor: colors.border,
-                    height: 65,
-                    paddingBottom: 10,
+                    height: 65 + insets.bottom,
+                    paddingBottom: Math.max(insets.bottom, 10),
                     paddingTop: 10,
                     borderTopWidth: 2,
                 },
