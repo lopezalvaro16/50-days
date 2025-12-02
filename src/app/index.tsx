@@ -8,26 +8,9 @@ import { authService } from '../services/authService';
 
 export default function WelcomeScreen() {
     const router = useRouter();
-    const [isChecking, setIsChecking] = useState(true);
 
-    // Redirect if user is already logged in
-    useEffect(() => {
-        const checkAuth = async () => {
-            // Small delay to ensure loading screen has time to show
-            await new Promise(resolve => setTimeout(resolve, 100));
-            const user = authService.getCurrentUser();
-            setIsChecking(false);
-            if (user) {
-                router.replace('/(tabs)');
-            }
-        };
-        checkAuth();
-    }, [router]);
-
-    // Don't render anything while checking (loading screen will show)
-    if (isChecking) {
-        return null;
-    }
+    // No need to check auth here - _layout.tsx handles all navigation
+    // This screen will only show when user is not authenticated
 
     return (
         <View style={styles.container}>

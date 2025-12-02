@@ -88,5 +88,108 @@ export const offlineService = {
             return false;
         }
     },
+
+    // Obtener TODOS los datos offline del usuario
+    getAllOfflineData: async () => {
+        console.log('');
+        console.log('═══════════════════════════════════════════════════════════');
+        console.log('💾 [OFFLINE] getAllOfflineData - Obteniendo TODOS los datos offline');
+        console.log('═══════════════════════════════════════════════════════════');
+        console.log('');
+
+        try {
+            // Obtener fechas pendientes de sincronización
+            console.log('📋 [OFFLINE] 1. Verificando fechas pendientes de sincronización...');
+            console.log('───────────────────────────────────────────────────────────');
+            const pendingDatesStr = await AsyncStorage.getItem(PENDING_SYNC_KEY);
+            const pendingDates = pendingDatesStr ? JSON.parse(pendingDatesStr) : [];
+            
+            console.log('  - Fechas pendientes de sincronización:', pendingDates);
+            console.log('  - Cantidad de fechas pendientes:', pendingDates.length);
+            console.log('');
+
+            if (pendingDates.length > 0) {
+                console.log('  ┌─────────────────────────────────────────────────────┐');
+                console.log('  │ DATOS OFFLINE PENDIENTES DE SINCRONIZAR           │');
+                console.log('  └─────────────────────────────────────────────────────┘');
+                console.log('');
+
+                for (const date of pendingDates) {
+                    console.log(`  📅 Fecha: ${date}`);
+                    const offlineProgress = await offlineService.getOfflineProgress(date);
+                    if (offlineProgress) {
+                        console.log('    - Progreso guardado offline:');
+                        console.log('      • Hábitos:', offlineProgress);
+                        Object.keys(offlineProgress).forEach(key => {
+                            console.log(`        - ${key}:`, offlineProgress[key], `(${typeof offlineProgress[key]})`);
+                        });
+                    } else {
+                        console.log('    - ⚠️ No se encontró progreso offline para esta fecha');
+                    }
+                    console.log('');
+                }
+            } else {
+                console.log('  ℹ️ No hay datos offline pendientes de sincronización');
+                console.log('');
+            }
+
+            // Intentar obtener todas las keys de AsyncStorage relacionadas
+            console.log('📋 [OFFLINE] 2. Buscando todas las claves relacionadas en AsyncStorage...');
+            console.log('───────────────────────────────────────────────────────────');
+            try {
+                const allKeys = await AsyncStorage.getAllKeys();
+                const offlineKeys = allKeys.filter(key => key.startsWith(OFFLINE_PREFIX));
+                const otherRelevantKeys = allKeys.filter(key => 
+                    key.includes('progress') || 
+                    key.includes('habit') || 
+                    key.includes('sync') ||
+                    key.includes('user')
+                );
+
+                console.log('  - Total de claves en AsyncStorage:', allKeys.length);
+                console.log('  - Claves de progreso offline encontradas:', offlineKeys.length);
+                console.log('  - Otras claves relevantes:', otherRelevantKeys.length);
+                console.log('');
+
+                if (offlineKeys.length > 0) {
+                    console.log('  📦 Claves de progreso offline:');
+                    offlineKeys.forEach(key => {
+                        const date = key.replace(OFFLINE_PREFIX, '');
+                        console.log(`    • ${key} -> Fecha: ${date}`);
+                    });
+                    console.log('');
+                }
+
+                if (otherRelevantKeys.length > 0) {
+                    console.log('  📦 Otras claves relevantes encontradas:');
+                    otherRelevantKeys.forEach(key => {
+                        console.log(`    • ${key}`);
+                    });
+                    console.log('');
+                }
+            } catch (error) {
+                console.log('  ⚠️ Error al obtener claves de AsyncStorage:', error);
+            }
+
+            console.log('═══════════════════════════════════════════════════════════');
+            console.log('💾 RESUMEN DE DATOS OFFLINE');
+            console.log('═══════════════════════════════════════════════════════════');
+            console.log('  - Fechas pendientes de sincronización:', pendingDates.length);
+            console.log('═══════════════════════════════════════════════════════════');
+            console.log('');
+
+            return {
+                pendingDates,
+                count: pendingDates.length,
+            };
+        } catch (error) {
+            console.log('❌ Error obteniendo datos offline:', error);
+            console.log('');
+            return {
+                pendingDates: [],
+                count: 0,
+            };
+        }
+    },
 };
 

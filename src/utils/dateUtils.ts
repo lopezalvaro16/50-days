@@ -57,3 +57,57 @@ export function getArgentinaDate(): Date {
     return argentinaDate;
 }
 
+/**
+ * Calculates the number of calendar days between two dates in Argentina timezone
+ * This ensures that the day count is based on calendar days, not 24-hour periods
+ * @param startDate The start date
+ * @param endDate Optional end date (defaults to today)
+ * @returns The number of calendar days (inclusive, so day 1 is the start date)
+ */
+export function getCalendarDaysSince(startDate: Date, endDate?: Date): number {
+    console.log('🗓️ [DATEUTILS] getCalendarDaysSince - Iniciando cálculo:');
+    console.log('  - startDate recibido:', startDate);
+    console.log('  - startDate tipo:', typeof startDate);
+    console.log('  - startDate es Date?', startDate instanceof Date);
+    console.log('  - startDate ISO:', startDate?.toISOString?.());
+    console.log('  - endDate recibido:', endDate || 'undefined (usará hoy)');
+    
+    const start = getArgentinaDateString(startDate);
+    const end = getArgentinaDateString(endDate);
+    
+    console.log('  - Fecha Argentina de inicio (string):', start);
+    console.log('  - Fecha Argentina de fin (string):', end);
+    
+    // Parse dates to compare year, month, day
+    const [startYear, startMonth, startDay] = start.split('-').map(Number);
+    const [endYear, endMonth, endDay] = end.split('-').map(Number);
+    
+    console.log('  - startYear:', startYear, 'startMonth:', startMonth, 'startDay:', startDay);
+    console.log('  - endYear:', endYear, 'endMonth:', endMonth, 'endDay:', endDay);
+    
+    // Create dates at noon to avoid timezone issues
+    const startDateObj = new Date(Date.UTC(startYear, startMonth - 1, startDay, 12, 0, 0));
+    const endDateObj = new Date(Date.UTC(endYear, endMonth - 1, endDay, 12, 0, 0));
+    
+    console.log('  - startDateObj UTC (ISO):', startDateObj.toISOString());
+    console.log('  - endDateObj UTC (ISO):', endDateObj.toISOString());
+    console.log('  - startDateObj timestamp:', startDateObj.getTime());
+    console.log('  - endDateObj timestamp:', endDateObj.getTime());
+    
+    // Calculate difference in milliseconds
+    const diffTime = endDateObj.getTime() - startDateObj.getTime();
+    
+    console.log('  - Diferencia en milisegundos:', diffTime);
+    console.log('  - Diferencia en días (sin redondeo):', diffTime / (1000 * 60 * 60 * 24));
+    
+    // Convert to days and add 1 to make it inclusive (day 1 is the start date)
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    
+    console.log('  - Días calculados (con +1 inclusivo):', diffDays);
+    
+    const result = Math.max(1, diffDays); // Always return at least 1
+    console.log('  - Resultado final (mínimo 1):', result);
+    
+    return result;
+}
+

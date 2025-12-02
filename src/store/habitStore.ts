@@ -125,20 +125,37 @@ export const useHabitStore = create<HabitState>((set, get) => ({
             if (allCompleted) {
                 const userProfile = await firestoreService.getUserProfile(user.uid);
                 if (userProfile) {
-                    const lastCompleted = userProfile.lastCompletedDate;
+                    const todayStr = getArgentinaDateString();
                     const yesterdayStr = getYesterdayArgentinaDateString();
+                    const lastCompleted = userProfile.lastCompletedDate;
 
                     // Calculate new streak
                     let newStreak = 1;
-                    if (lastCompleted) {
-                        const lastCompletedStr = getArgentinaDateString(lastCompleted);
+                    const lastCompletedStr = lastCompleted ? getArgentinaDateString(lastCompleted) : null;
+                    
+                    if (lastCompleted && lastCompletedStr) {
+                        // Check if last completed was yesterday (consecutive day)
                         if (lastCompletedStr === yesterdayStr) {
-                            // Consecutive day
-                            newStreak = userProfile.currentStreak + 1;
+                            // Consecutive day - increment streak
+                            newStreak = (userProfile.currentStreak || 0) + 1;
+                        } else if (lastCompletedStr === todayStr) {
+                            // Already completed today - keep current streak, don't increment counter
+                            newStreak = userProfile.currentStreak || 0;
+                            await firestoreService.updateStreak(user.uid, newStreak, new Date(), false);
+                            return; // Exit early, already completed today
+                        } else {
+                            // Not consecutive - start new streak at 1
+                            newStreak = 1;
                         }
+                    } else {
+                        // First time completing - start streak at 1
+                        newStreak = 1;
                     }
 
-                    await firestoreService.updateStreak(user.uid, newStreak, new Date());
+                    // Only update if this is a new completion (not already completed today)
+                    if (lastCompletedStr !== todayStr) {
+                        await firestoreService.updateStreak(user.uid, newStreak, new Date(), true);
+                    }
                 }
             }
         } catch (streakError) {
@@ -188,20 +205,37 @@ export const useHabitStore = create<HabitState>((set, get) => ({
             if (allCompleted) {
                 const userProfile = await firestoreService.getUserProfile(user.uid);
                 if (userProfile) {
-                    const lastCompleted = userProfile.lastCompletedDate;
+                    const todayStr = getArgentinaDateString();
                     const yesterdayStr = getYesterdayArgentinaDateString();
+                    const lastCompleted = userProfile.lastCompletedDate;
 
                     // Calculate new streak
                     let newStreak = 1;
-                    if (lastCompleted) {
-                        const lastCompletedStr = getArgentinaDateString(lastCompleted);
+                    const lastCompletedStr = lastCompleted ? getArgentinaDateString(lastCompleted) : null;
+                    
+                    if (lastCompleted && lastCompletedStr) {
+                        // Check if last completed was yesterday (consecutive day)
                         if (lastCompletedStr === yesterdayStr) {
-                            // Consecutive day
-                            newStreak = userProfile.currentStreak + 1;
+                            // Consecutive day - increment streak
+                            newStreak = (userProfile.currentStreak || 0) + 1;
+                        } else if (lastCompletedStr === todayStr) {
+                            // Already completed today - keep current streak, don't increment counter
+                            newStreak = userProfile.currentStreak || 0;
+                            await firestoreService.updateStreak(user.uid, newStreak, new Date(), false);
+                            return; // Exit early, already completed today
+                        } else {
+                            // Not consecutive - start new streak at 1
+                            newStreak = 1;
                         }
+                    } else {
+                        // First time completing - start streak at 1
+                        newStreak = 1;
                     }
 
-                    await firestoreService.updateStreak(user.uid, newStreak, new Date());
+                    // Only update if this is a new completion (not already completed today)
+                    if (lastCompletedStr !== todayStr) {
+                        await firestoreService.updateStreak(user.uid, newStreak, new Date(), true);
+                    }
                 }
             }
         } catch (error) {
@@ -251,9 +285,9 @@ export const useHabitStore = create<HabitState>((set, get) => ({
                         const yesterdayStr = getYesterdayArgentinaDateString();
                         const lastCompletedStr = getArgentinaDateString(lastCompleted);
 
-                        // If they didn't complete yesterday, reset streak
+                        // If they didn't complete yesterday, reset streak (don't increment counter)
                         if (lastCompletedStr !== yesterdayStr && lastCompletedStr !== today) {
-                            await firestoreService.updateStreak(user.uid, 0, lastCompleted);
+                            await firestoreService.updateStreak(user.uid, 0, lastCompleted, false);
                         }
                     }
                 } catch (profileError) {

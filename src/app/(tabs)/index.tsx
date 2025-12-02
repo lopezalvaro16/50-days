@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, SafeAreaView, Platform, StatusBar, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, SafeAreaView, Platform, StatusBar, RefreshControl, AppState } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { SPACING, SIZES } from '../../constants/theme';
 import { useThemeStore } from '../../store/themeStore';
 import { useHabitStore } from '../../store/habitStore';
@@ -15,6 +16,7 @@ import { firestoreService } from '../../services/firestoreService';
 import { authService } from '../../services/authService';
 import { offlineService } from '../../services/offlineService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getCalendarDaysSince, getArgentinaDateString, parseArgentinaDate } from '../../utils/dateUtils';
 
 export default function DashboardScreen() {
     const { colors, isDarkMode } = useThemeStore();
@@ -25,15 +27,108 @@ export default function DashboardScreen() {
     const [refreshing, setRefreshing] = useState(false);
     const [showOnboarding, setShowOnboarding] = useState(false);
     const previousProgressRef = useRef(0);
+    const lastCheckedDateRef = useRef<string>(getArgentinaDateString());
+    const appState = useRef(AppState.currentState);
 
     const progress = getProgress();
 
+    // Function to reload stats when day changes
+    const reloadStats = async () => {
+        try {
+            const user = authService.getCurrentUser();
+            if (!user) return;
+
+            const profile = await firestoreService.getUserProfile(user.uid);
+            if (profile) {
+                setCurrentStreak(profile.currentStreak || 0);
+                const start = new Date(profile.startDate);
+                const dayCount = getCalendarDaysSince(start);
+                setDayNumber(dayCount);
+                
+                // Re-initialize habits for new day
+                await initializeDailyHabits();
+            }
+        } catch (error) {
+            // Silently fail
+        }
+    };
+
+    // Check if day has changed and reload if needed
+    useEffect(() => {
+        const checkDayChange = async () => {
+            const currentDate = getArgentinaDateString();
+            if (currentDate !== lastCheckedDateRef.current) {
+                lastCheckedDateRef.current = currentDate;
+                
+                // Clear celebration date if day changed (to allow celebration for new day)
+                try {
+                    const lastCelebrationDate = await AsyncStorage.getItem('last_celebration_date');
+                    if (lastCelebrationDate && lastCelebrationDate !== currentDate) {
+                        // Day changed, we can show celebration for the new day
+                        // The date will be different, so we don't need to clear it
+                        // but we ensure the modal won't show if already shown today
+                    }
+                } catch (error) {
+                    // Silently fail
+                }
+                
+                reloadStats();
+            }
+        };
+
+        // Check immediately
+        checkDayChange().catch(() => {
+            // Silently fail
+        });
+
+        // Check every minute for day changes
+        const interval = setInterval(() => {
+            checkDayChange().catch(() => {
+                // Silently fail
+            });
+        }, 60000); // Check every minute
+
+        // Listen to app state changes (when app comes to foreground)
+        const subscription = AppState.addEventListener('change', (nextAppState) => {
+            if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+                // App has come to the foreground, check if day changed
+                checkDayChange().catch(() => {
+                    // Silently fail
+                });
+            }
+            appState.current = nextAppState;
+        });
+
+        return () => {
+            clearInterval(interval);
+            subscription.remove();
+        };
+    }, []);
+
+    // Also reload when screen comes into focus
+    useFocusEffect(
+        React.useCallback(() => {
+            const currentDate = getArgentinaDateString();
+            if (currentDate !== lastCheckedDateRef.current) {
+                lastCheckedDateRef.current = currentDate;
+                reloadStats();
+            }
+        }, [])
+    );
+
     // Cargar datos desde Firestore
     useEffect(() => {
+        console.log('🚀 [DASHBOARD] ========================================');
+        console.log('🚀 [DASHBOARD] INICIANDO CARGA DE DATOS DEL DASHBOARD');
+        console.log('🚀 [DASHBOARD] ========================================');
+        
         async function loadStats() {
             try {
                 const user = authService.getCurrentUser();
-                if (!user) return;
+                if (!user) {
+                    console.log('❌ [DASHBOARD] No hay usuario autenticado');
+                    return;
+                }
 
                 // Sync any pending offline progress first
                 try {
@@ -42,22 +137,92 @@ export default function DashboardScreen() {
                     // Silently fail - offline sync will retry later
                 }
 
-                const profile = await firestoreService.getUserProfile(user.uid);
+                console.log('📱 [DASHBOARD] Cargando datos iniciales del usuario...');
+                console.log('  - User UID:', user.uid);
+                console.log('  - User Email:', user.email);
+                
+                // Cargar TODOS los datos del usuario para logs completos
+                const allUserData = await firestoreService.getAllUserData(user.uid);
+                
+                // Cargar también todos los datos offline
+                await offlineService.getAllOfflineData();
+                
+                // Verificar si el perfil existe, si no, crearlo automáticamente
+                let profile = await firestoreService.getUserProfile(user.uid);
+                
+                if (!profile && user.email) {
+                    console.log('⚠️ [DASHBOARD] El perfil no existe, creándolo automáticamente...');
+                    
+                    // Si ya existe progreso, usar la primera fecha como startDate
+                    let startDate: Date | null = null;
+                    
+                    if (allUserData.firstProgressDate) {
+                        console.log('📅 [DASHBOARD] Se encontró progreso previo, usando primera fecha como startDate:', allUserData.firstProgressDate);
+                        startDate = parseArgentinaDate(allUserData.firstProgressDate);
+                        console.log('  - startDate calculado desde primera fecha:', startDate);
+                        console.log('  - startDate ISO:', startDate.toISOString());
+                    }
+                    
+                    // Crear perfil con el startDate correcto
+                    if (startDate) {
+                        await firestoreService.createUserProfile(user.uid, user.email, undefined, startDate);
+                    } else {
+                        await firestoreService.createUserProfile(user.uid, user.email);
+                    }
+                    
+                    profile = await firestoreService.getUserProfile(user.uid);
+                } else if (profile && allUserData.firstProgressDate) {
+                    // Verificar si el startDate del perfil es más reciente que el primer progreso
+                    const profileStartDateStr = getArgentinaDateString(profile.startDate);
+                    const firstProgressDateStr = allUserData.firstProgressDate;
+                    
+                    if (firstProgressDateStr < profileStartDateStr) {
+                        console.log('⚠️ [DASHBOARD] El startDate del perfil es más reciente que el primer progreso');
+                        console.log('  - startDate del perfil:', profileStartDateStr);
+                        console.log('  - Primera fecha de progreso:', firstProgressDateStr);
+                        console.log('  - Corrigiendo startDate del perfil...');
+                        
+                        const correctedStartDate = parseArgentinaDate(firstProgressDateStr);
+                        await firestoreService.updateStartDate(user.uid, correctedStartDate);
+                        profile = await firestoreService.getUserProfile(user.uid);
+                    }
+                }
 
                 if (profile) {
+                    console.log('📊 [DASHBOARD] Perfil recibido:');
+                    console.log('  - startDate:', profile.startDate);
+                    console.log('  - startDate tipo:', typeof profile.startDate);
+                    console.log('  - startDate es Date?', profile.startDate instanceof Date);
+                    console.log('  - startDate ISO:', profile.startDate?.toISOString?.());
+                    console.log('  - currentStreak:', profile.currentStreak);
+                    console.log('  - longestStreak:', profile.longestStreak);
+                    console.log('  - totalDaysCompleted:', profile.totalDaysCompleted);
+                    console.log('  - lastCompletedDate:', profile.lastCompletedDate);
+                    
                     setCurrentStreak(profile.currentStreak || 0);
 
-                    // Calculate days since start
+                    // Calculate calendar days since start (inclusive, day 1 is start date)
                     const start = new Date(profile.startDate);
-                    const today = new Date();
-                    const diffTime = Math.abs(today.getTime() - start.getTime());
-                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-                    setDayNumber(diffDays || 1);
+                    console.log('📅 [DASHBOARD] Calculando días desde inicio...');
+                    console.log('  - start (Date object):', start);
+                    console.log('  - start ISO:', start.toISOString());
+                    console.log('  - start timestamp:', start.getTime());
+                    
+                    const dayCount = getCalendarDaysSince(start);
+                    console.log('  - Días calculados:', dayCount);
+                    console.log('  - Día del reto establecido:', dayCount);
+                    
+                    setDayNumber(dayCount);
+                    console.log('✅ [DASHBOARD] Datos cargados exitosamente');
+                } else {
+                    console.log('❌ [DASHBOARD] No se pudo cargar el perfil');
                 }
             } catch (error) {
-                // Silently fail - stats will load on next refresh
+                console.error('❌ [DASHBOARD] Error al cargar datos:', error);
             }
+            console.log('🏁 [DASHBOARD] ========================================');
+            console.log('🏁 [DASHBOARD] FIN DE CARGA DE DATOS DEL DASHBOARD');
+            console.log('🏁 [DASHBOARD] ========================================');
         }
 
         loadStats();
@@ -89,17 +254,39 @@ export default function DashboardScreen() {
     useEffect(() => {
         const allCompleted = habits.every(h => h.isCompleted);
         const wasCompleted = previousProgressRef.current === 1;
+        const today = getArgentinaDateString();
         
         // Show celebration if just completed (not if already was completed)
         if (allCompleted && progress === 1 && !wasCompleted) {
-            // Strong haptic feedback for completing all habits (optional)
-            try {
-                const Haptics = require('expo-haptics');
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            } catch (error) {
-                // Haptics not available, continue without it
-            }
-            setShowCelebration(true);
+            // Check if we already showed the celebration for today
+            const checkAndShowCelebration = async () => {
+                try {
+                    const lastCelebrationDate = await AsyncStorage.getItem('last_celebration_date');
+                    
+                    // Only show if we haven't shown it today
+                    if (lastCelebrationDate !== today) {
+                        // Strong haptic feedback for completing all habits (optional)
+                        try {
+                            const Haptics = require('expo-haptics');
+                            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                        } catch (error) {
+                            // Haptics not available, continue without it
+                        }
+                        
+                        // Save today's date and show celebration
+                        await AsyncStorage.setItem('last_celebration_date', today);
+                        setShowCelebration(true);
+                    } else {
+                        console.log('✅ [DASHBOARD] Modal de celebración ya mostrado hoy, omitiendo...');
+                    }
+                } catch (error) {
+                    console.error('❌ [DASHBOARD] Error verificando fecha de celebración:', error);
+                    // If there's an error, show the celebration anyway (better UX than not showing it)
+                    setShowCelebration(true);
+                }
+            };
+            
+            checkAndShowCelebration();
         }
         
         previousProgressRef.current = progress;
@@ -115,10 +302,8 @@ export default function DashboardScreen() {
                 if (profile) {
                     setCurrentStreak(profile.currentStreak || 0);
                     const start = new Date(profile.startDate);
-                    const today = new Date();
-                    const diffTime = Math.abs(today.getTime() - start.getTime());
-                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                    setDayNumber(diffDays || 1);
+                    const dayCount = getCalendarDaysSince(start);
+                    setDayNumber(dayCount);
                 }
             }
         } catch (error) {
@@ -231,7 +416,16 @@ export default function DashboardScreen() {
             
             <CelebrationModal
                 visible={showCelebration}
-                onClose={() => setShowCelebration(false)}
+                onClose={async () => {
+                    setShowCelebration(false);
+                    // Ensure the date is saved when modal is closed
+                    try {
+                        const today = getArgentinaDateString();
+                        await AsyncStorage.setItem('last_celebration_date', today);
+                    } catch (error) {
+                        // Silently fail
+                    }
+                }}
                 streak={currentStreak}
             />
             

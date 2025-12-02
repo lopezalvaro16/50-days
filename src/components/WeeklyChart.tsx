@@ -35,7 +35,9 @@ export const WeeklyChart: React.FC<WeeklyChartProps> = ({ days = 7 }) => {
                 try {
                     const progress = await firestoreService.getDailyProgress(user.uid, dateStr);
                     if (progress) {
-                        const completedCount = Object.values(progress).filter(Boolean).length;
+                        // Count only the 7 habits (IDs '1' through '7'), ignoring other fields like waterCount
+                        const habitIds = ['1', '2', '3', '4', '5', '6', '7'];
+                        const completedCount = habitIds.filter(id => progress[id] === true).length;
                         data.push(completedCount);
                     } else {
                         data.push(0);
@@ -73,8 +75,10 @@ export const WeeklyChart: React.FC<WeeklyChartProps> = ({ days = 7 }) => {
             <View style={styles.chartContainer}>
                 <View style={styles.barsContainer}>
                     {weekData.map((value, index) => {
-                        const height = maxValue > 0 ? (value / maxValue) * maxHeight : 0;
+                        // Calculate height: always use 7 as max for consistent bar heights
+                        const height = value > 0 ? (value / 7) * maxHeight : 4;
                         const isToday = index === days - 1;
+                        const isComplete = value === 7;
 
                         return (
                             <View key={index} style={styles.barWrapper}>
@@ -84,7 +88,7 @@ export const WeeklyChart: React.FC<WeeklyChartProps> = ({ days = 7 }) => {
                                             styles.bar,
                                             {
                                                 height: Math.max(height, 4),
-                                                backgroundColor: value === 7 
+                                                backgroundColor: isComplete
                                                     ? colors.success 
                                                     : value > 0 
                                                         ? colors.primary 

@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, SafeAreaView, Platform, StatusBar } from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, SafeAreaView, Platform, StatusBar, AppState } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { SPACING, SIZES } from '../../constants/theme';
 import { useThemeStore } from '../../store/themeStore';
 import { firestoreService } from '../../services/firestoreService';
@@ -9,7 +10,7 @@ import { ProgressCalendar } from '../../components/ProgressCalendar';
 import { WeeklyChart } from '../../components/WeeklyChart';
 import { InsightsCard } from '../../components/InsightsCard';
 import { ShareProgress } from '../../components/ShareProgress';
-import { getArgentinaDateString } from '../../utils/dateUtils';
+import { getArgentinaDateString, getCalendarDaysSince } from '../../utils/dateUtils';
 
 export default function StatsScreen() {
     const { colors, isDarkMode } = useThemeStore();
@@ -19,12 +20,14 @@ export default function StatsScreen() {
         totalDaysCompleted: 0,
         daysSinceStart: 0,
     });
+    const lastCheckedDateRef = useRef<string>(getArgentinaDateString());
+    const appState = useRef(AppState.currentState);
 
     // Cargar estadísticas desde tu servicio (ajusta los nombres de funciones según tu implementación)
     useEffect(() => {
         let mounted = true;
 
-        async function loadStats() {
+        const loadStats = async () => {
             try {
                 const user = authService.getCurrentUser();
                 if (!user) return;
@@ -32,24 +35,22 @@ export default function StatsScreen() {
                 const profile = await firestoreService.getUserProfile(user.uid);
 
                 if (mounted && profile) {
-                    // Calculate days since start
+                    // Calculate calendar days since start (inclusive, day 1 is start date)
                     const start = new Date(profile.startDate);
-                    const today = new Date();
-                    const diffTime = Math.abs(today.getTime() - start.getTime());
-                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    const dayCount = getCalendarDaysSince(start);
 
                     setStats((prev) => ({
                         ...prev,
                         currentStreak: profile.currentStreak ?? prev.currentStreak,
                         longestStreak: profile.longestStreak ?? prev.longestStreak,
                         totalDaysCompleted: profile.totalDaysCompleted ?? prev.totalDaysCompleted,
-                        daysSinceStart: diffDays ?? prev.daysSinceStart,
+                        daysSinceStart: dayCount,
                     }));
                 }
             } catch (error) {
                 console.warn('Error cargando estadísticas:', error);
             }
-        }
+        };
 
         loadStats();
 
@@ -57,6 +58,95 @@ export default function StatsScreen() {
             mounted = false;
         };
     }, []);
+
+    // Check if day has changed and reload if needed
+    useEffect(() => {
+        const loadStats = async () => {
+            try {
+                const user = authService.getCurrentUser();
+                if (!user) return;
+
+                const profile = await firestoreService.getUserProfile(user.uid);
+
+                if (profile) {
+                    const start = new Date(profile.startDate);
+                    const dayCount = getCalendarDaysSince(start);
+
+                    setStats((prev) => ({
+                        ...prev,
+                        currentStreak: profile.currentStreak ?? prev.currentStreak,
+                        longestStreak: profile.longestStreak ?? prev.longestStreak,
+                        totalDaysCompleted: profile.totalDaysCompleted ?? prev.totalDaysCompleted,
+                        daysSinceStart: dayCount,
+                    }));
+                }
+            } catch (error) {
+                console.warn('Error cargando estadísticas:', error);
+            }
+        };
+
+        const checkDayChange = () => {
+            const currentDate = getArgentinaDateString();
+            if (currentDate !== lastCheckedDateRef.current) {
+                lastCheckedDateRef.current = currentDate;
+                loadStats();
+            }
+        };
+
+        // Check immediately
+        checkDayChange();
+
+        // Check every minute for day changes
+        const interval = setInterval(checkDayChange, 60000);
+
+        // Listen to app state changes
+        const subscription = AppState.addEventListener('change', (nextAppState) => {
+            if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+                checkDayChange();
+            }
+            appState.current = nextAppState;
+        });
+
+        return () => {
+            clearInterval(interval);
+            subscription.remove();
+        };
+    }, []);
+
+    // Also reload when screen comes into focus
+    useFocusEffect(
+        React.useCallback(() => {
+            const loadStats = async () => {
+                try {
+                    const user = authService.getCurrentUser();
+                    if (!user) return;
+
+                    const profile = await firestoreService.getUserProfile(user.uid);
+
+                    if (profile) {
+                        const start = new Date(profile.startDate);
+                        const dayCount = getCalendarDaysSince(start);
+
+                        setStats((prev) => ({
+                            ...prev,
+                            currentStreak: profile.currentStreak ?? prev.currentStreak,
+                            longestStreak: profile.longestStreak ?? prev.longestStreak,
+                            totalDaysCompleted: profile.totalDaysCompleted ?? prev.totalDaysCompleted,
+                            daysSinceStart: dayCount,
+                        }));
+                    }
+                } catch (error) {
+                    console.warn('Error cargando estadísticas:', error);
+                }
+            };
+
+            const currentDate = getArgentinaDateString();
+            if (currentDate !== lastCheckedDateRef.current) {
+                lastCheckedDateRef.current = currentDate;
+                loadStats();
+            }
+        }, [])
+    );
 
     // Componente StatCard definido dentro del archivo
     const StatCard = ({ icon: Icon, title, value, color }: any) => (

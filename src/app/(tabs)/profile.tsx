@@ -1,11 +1,13 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, Platform, StatusBar, ScrollView, TextInput, TouchableOpacity, Modal, Alert } from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import { View, Text, StyleSheet, SafeAreaView, Platform, StatusBar, ScrollView, TextInput, TouchableOpacity, Modal, Alert, AppState } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { SPACING, SIZES } from '../../constants/theme';
 import { useThemeStore } from '../../store/themeStore';
 import { authService } from '../../services/authService';
 import { firestoreService } from '../../services/firestoreService';
 import { User, Calendar, Flame, Trophy, Edit2, Check, X } from 'lucide-react-native';
 import { Button } from '../../components/Button';
+import { getCalendarDaysSince, getArgentinaDateString } from '../../utils/dateUtils';
 
 export default function ProfileScreen() {
     const { colors, isDarkMode } = useThemeStore();
@@ -19,9 +21,10 @@ export default function ProfileScreen() {
         totalDaysCompleted: 0,
         daysSinceStart: 0,
     });
+    const lastCheckedDateRef = useRef<string>(getArgentinaDateString());
+    const appState = useRef(AppState.currentState);
 
-    useEffect(() => {
-        async function loadProfile() {
+    const loadProfile = async () => {
             try {
                 const user = authService.getCurrentUser();
                 if (!user) return;
@@ -33,15 +36,13 @@ export default function ProfileScreen() {
                     setDisplayName(profile.displayName || user.email?.split('@')[0] || 'Usuario');
                     
                     const start = new Date(profile.startDate);
-                    const today = new Date();
-                    const diffTime = Math.abs(today.getTime() - start.getTime());
-                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    const dayCount = getCalendarDaysSince(start);
 
                     setUserStats({
                         currentStreak: profile.currentStreak || 0,
                         longestStreak: profile.longestStreak || 0,
                         totalDaysCompleted: profile.totalDaysCompleted || 0,
-                        daysSinceStart: diffDays || 0,
+                        daysSinceStart: dayCount,
                     });
                 } else {
                     setDisplayName(user.email?.split('@')[0] || 'Usuario');
@@ -49,10 +50,52 @@ export default function ProfileScreen() {
             } catch (error) {
                 console.log('Error cargando perfil:', error);
             }
-        }
+    };
 
+    useEffect(() => {
         loadProfile();
     }, []);
+
+    // Check if day has changed and reload if needed
+    useEffect(() => {
+        const checkDayChange = () => {
+            const currentDate = getArgentinaDateString();
+            if (currentDate !== lastCheckedDateRef.current) {
+                lastCheckedDateRef.current = currentDate;
+                loadProfile();
+            }
+        };
+
+        // Check immediately
+        checkDayChange();
+
+        // Check every minute for day changes
+        const interval = setInterval(checkDayChange, 60000);
+
+        // Listen to app state changes
+        const subscription = AppState.addEventListener('change', (nextAppState) => {
+            if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+                checkDayChange();
+            }
+            appState.current = nextAppState;
+        });
+
+        return () => {
+            clearInterval(interval);
+            subscription.remove();
+        };
+    }, []);
+
+    // Also reload when screen comes into focus
+    useFocusEffect(
+        React.useCallback(() => {
+            const currentDate = getArgentinaDateString();
+            if (currentDate !== lastCheckedDateRef.current) {
+                lastCheckedDateRef.current = currentDate;
+                loadProfile();
+            }
+        }, [])
+    );
 
     const handleEditName = () => {
         setTempName(displayName);
