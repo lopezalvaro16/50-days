@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, SafeAreaView, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SPACING } from '../constants/theme';
 import { useThemeStore } from '../store/themeStore';
 import { X } from 'lucide-react-native';
@@ -14,6 +15,7 @@ interface OnboardingModalProps {
 export const OnboardingModal: React.FC<OnboardingModalProps> = ({ visible, onComplete }) => {
     const { colors } = useThemeStore();
     const [currentStep, setCurrentStep] = useState(0);
+    const insets = useSafeAreaInsets();
 
     const handleNext = () => {
         if (currentStep < 6) {
@@ -124,7 +126,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ visible, onCom
                 </View>
 
                 {/* Footer */}
-                <View style={[styles.footer, { borderTopColor: colors.border }]}>
+                <View style={[styles.footer, { borderTopColor: colors.border, paddingBottom: Math.max(insets.bottom, SPACING.l) }]}>
                     <View style={styles.dotsContainer}>
                         {[0, 1, 2, 3, 4, 5, 6].map((index) => (
                             <View
@@ -178,7 +180,6 @@ const styles = StyleSheet.create({
     footer: {
         paddingHorizontal: SPACING.l,
         paddingTop: SPACING.l,
-        paddingBottom: Platform.OS === 'ios' ? SPACING.xl : SPACING.l,
         borderTopWidth: 1,
     },
     dotsContainer: {
