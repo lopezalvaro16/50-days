@@ -9,8 +9,26 @@ import { authService } from '../services/authService';
 export default function WelcomeScreen() {
     const router = useRouter();
 
-    // No need to check auth here - _layout.tsx handles all navigation
-    // This screen will only show when user is not authenticated
+    // CRITICAL: Check auth IMMEDIATELY and NEVER render if user is authenticated
+    // This prevents ANY flash of this screen for logged-in users
+    // Do this check synchronously on every render
+    const user = authService.getCurrentUser();
+    
+    // If user exists, redirect immediately and render nothing
+    useEffect(() => {
+        if (user && user.uid) {
+            // User is authenticated - redirect immediately
+            router.replace('/(tabs)');
+        }
+    }, [user, router]);
+    
+    // Don't render anything if user is authenticated
+    // This prevents ANY flash, even during initial mount
+    if (user && user.uid) {
+        return null; // Don't render anything at all
+    }
+
+    // Only render welcome screen if user is definitely not authenticated
 
     return (
         <View style={styles.container}>

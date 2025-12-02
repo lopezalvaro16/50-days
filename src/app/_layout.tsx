@@ -38,6 +38,7 @@ export default function RootLayout() {
     const [showLoading, setShowLoading] = useState(false); // Step 2: Loading screen with progress bar
     const [minLoadingTimeElapsed, setMinLoadingTimeElapsed] = useState(false);
     const [navigationReady, setNavigationReady] = useState(false); // Track if navigation is complete
+    const [initialRoute, setInitialRoute] = useState<string | null>(null); // Store the initial route before mounting Stack
     const hasRedirectedRef = useRef(false); // Prevent multiple redirects
     const hasShownLoadingRef = useRef(false); // Track if loading screen has been shown (only once per app start)
     const hasCompletedLoadingRef = useRef(false); // Track if loading screen has been completed (never show again)
@@ -53,7 +54,16 @@ export default function RootLayout() {
     // Step 2: Loading screen with progress bar - showLoading state
     // Step 3: Main app - when everything is ready
     // CRITICAL: Once loading screen is completed, never show it again - this prevents the double loading
-    const shouldShowLoading = !hasCompletedLoadingRef.current && showLoading && (!fontsLoaded || isLoading || loadingProgress < 100 || !initialDataLoaded || !minLoadingTimeElapsed || (hasRedirectedRef.current && !navigationReady));
+    // CRITICAL: Keep loading visible until navigation is complete - prevents flash of welcome screen
+    const shouldShowLoading = !hasCompletedLoadingRef.current && showLoading && (
+        !fontsLoaded || 
+        isLoading || 
+        loadingProgress < 100 || 
+        !initialDataLoaded || 
+        !minLoadingTimeElapsed || 
+        !initialRoute || 
+        !navigationReady // Keep visible until navigation is ready
+    );
 
     useEffect(() => {
         if (error) throw error;
@@ -302,56 +312,56 @@ export default function RootLayout() {
             console.log('  - dataReady:', dataReady);
             console.log('  - loadingProgress:', loadingProgress);
 
-            setIsReady(true);
-            hasRedirectedRef.current = true;
-            // Mark loading as completed IMMEDIATELY when we start navigation
-            // This prevents the double loading issue by blocking any re-renders
-            hasCompletedLoadingRef.current = true;
-            console.log('🎉 [LAYOUT] Marcando carga como completada INMEDIATAMENTE - nunca volver a mostrar');
-
             // Verify progress is exactly at 100% before proceeding (Step 3 requirement)
-            // Don't force it - wait for real data loading
             if (loadingProgress < 100 || !initialDataLoaded) {
                 console.log('⏳ [LAYOUT] Esperando que la barra llegue a 100% y datos carguen...');
                 return; // Don't proceed if not at 100%
             }
 
-            // Wait a moment to ensure Stack is mounted, then navigate
-            // This prevents navigation errors
+            // Determine initial route IMMEDIATELY
+            const currentUser = authService.getCurrentUser();
+            const finalUser = user || currentUser;
+            const targetRoute = (finalUser && finalUser.uid) ? '/(tabs)' : '/';
+            console.log('🎯 [LAYOUT] Ruta inicial determinada:', targetRoute, finalUser ? '(autenticado)' : '(no autenticado)');
+
+            // Store route and mark as redirected - BUT don't mark as completed yet
+            setInitialRoute(targetRoute);
+            setIsReady(true);
+            hasRedirectedRef.current = true;
+
+            // Navigate IMMEDIATELY - do this synchronously if possible
+            // The loading screen will stay visible until navigation is complete
+            try {
+                router.replace(targetRoute as any);
+                console.log('✅ [LAYOUT] Redirección ejecutada INMEDIATAMENTE a:', targetRoute);
+            } catch (navError) {
+                console.error('❌ [LAYOUT] Error en navegación:', navError);
+                setInitialRoute('/');
+                router.replace('/');
+            }
+
+            // Wait for navigation to settle completely BEFORE marking as ready
+            // This ensures the correct screen is fully rendered before loading disappears
             setTimeout(() => {
-                // Verify user authentication one more time before navigating
-                const currentUser = authService.getCurrentUser();
-                const finalUser = user || currentUser;
-
-                // Do navigation while loading screen is still visible
-                // This prevents any flash of the wrong screen
-                if (finalUser && finalUser.uid) {
-                    console.log('🔐 [LAYOUT] Usuario autenticado confirmado, redirigiendo a /(tabs)');
-                    console.log('  - User UID:', finalUser.uid);
-                    try {
-                        router.replace('/(tabs)' as any);
-                    } catch (navError) {
-                        console.error('❌ [LAYOUT] Error en navegación a /(tabs):', navError);
-                        // Fallback: redirect to welcome
-                        router.replace('/');
-                    }
-                } else {
-                    console.log('👋 [LAYOUT] Usuario NO autenticado confirmado, redirigiendo a /');
-                    router.replace('/');
-                }
-
-                // Wait a moment for navigation to complete, THEN hide loading screen
-                // This ensures the target screen is fully loaded before transition
+                console.log('✅ [LAYOUT] Esperando que la navegación se establezca...');
+                
+                // Additional wait to ensure target screen is fully rendered
                 setTimeout(() => {
-                    console.log('✅ [LAYOUT] Navegación completada, ocultando pantalla de carga...');
+                    console.log('✅ [LAYOUT] Navegación completamente establecida');
                     setNavigationReady(true);
-                    // Small delay for smooth transition
+                    
+                    // NOW mark as completed and hide loading - after navigation is fully done
                     setTimeout(() => {
-                        console.log('🎉 [LAYOUT] Ocultando pantalla de carga finalmente');
-                        setShowLoading(false);
-                    }, 100);
-                }, 300);
-            }, 200); // Small delay to ensure Stack is mounted
+                        console.log('🎉 [LAYOUT] Marcando carga como completada - pantalla objetivo renderizada');
+                        hasCompletedLoadingRef.current = true;
+                        
+                        setTimeout(() => {
+                            console.log('🎉 [LAYOUT] Ocultando pantalla de carga finalmente');
+                            setShowLoading(false);
+                        }, 500);
+                    }, 800); // Wait for screen to fully render
+                }, 600);
+            }, 300); // Initial wait for navigation to start
         } else if (!canProceed) {
             console.log('⏳ [LAYOUT] Esperando condiciones...', {
                 basicReady,
@@ -362,11 +372,19 @@ export default function RootLayout() {
         }
     }, [fontsLoaded, isLoading, loadingProgress, initialDataLoaded, minLoadingTimeElapsed, user, router]);
 
-    // Always render Stack (so navigator exists), but show loading screen on top
-    // This ensures we can navigate even while loading screen is visible
+    // CRITICAL: Always render Stack (Expo Router requires it), but cover it with loading screen
+    // until navigation is complete. This prevents flash of welcome screen.
+    // The loading screen covers everything until we've navigated to the correct route.
+    
     return (
         <>
-            <View style={{ flex: 1, backgroundColor: COLORS.background }}>
+            {/* Always render Stack so router exists, but hide it completely until navigation is ready */}
+            <View style={{ 
+                flex: 1, 
+                backgroundColor: COLORS.background,
+                opacity: shouldShowLoading ? 0 : 1, // Hide Stack completely while loading
+                pointerEvents: shouldShowLoading ? 'none' : 'auto', // Disable interaction while loading
+            }}>
                 <StatusBar style="light" />
                 <Stack
                     screenOptions={{
@@ -381,16 +399,22 @@ export default function RootLayout() {
                 </Stack>
             </View>
 
-            {/* Show loading screen on top if needed - only once per app start */}
-            {shouldShowLoading && !hasCompletedLoadingRef.current && (
-                <View style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    zIndex: 9999
-                }}>
+            {/* Loading screen covers Stack until navigation is complete - prevents flash */}
+            {/* CRITICAL: Keep loading visible until navigation is fully ready */}
+            {shouldShowLoading && (
+                <View 
+                    style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        zIndex: 99999, // Very high z-index to ensure it's on top
+                        backgroundColor: COLORS.background, // Ensure it covers everything completely
+                        elevation: 9999, // For Android
+                    }}
+                    pointerEvents="auto" // Block all pointer events to prevent interaction with Stack below
+                >
                     <LoadingScreen progress={loadingProgress} />
                 </View>
             )}
