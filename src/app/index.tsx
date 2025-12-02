@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { COLORS, SPACING, SIZES } from '../constants/theme';
@@ -8,14 +8,26 @@ import { authService } from '../services/authService';
 
 export default function WelcomeScreen() {
     const router = useRouter();
+    const [isChecking, setIsChecking] = useState(true);
 
     // Redirect if user is already logged in
     useEffect(() => {
-        const user = authService.getCurrentUser();
-        if (user) {
-            router.replace('/(tabs)');
-        }
+        const checkAuth = async () => {
+            // Small delay to ensure loading screen has time to show
+            await new Promise(resolve => setTimeout(resolve, 100));
+            const user = authService.getCurrentUser();
+            setIsChecking(false);
+            if (user) {
+                router.replace('/(tabs)');
+            }
+        };
+        checkAuth();
     }, [router]);
+
+    // Don't render anything while checking (loading screen will show)
+    if (isChecking) {
+        return null;
+    }
 
     return (
         <View style={styles.container}>
