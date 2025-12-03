@@ -57,9 +57,11 @@ export const WaterTracker: React.FC<WaterTrackerProps> = ({ habitId, onUpdate })
                 }
                 
                 // Sync store state if habit is marked as completed in Firestore
+                // BUT don't save to Firestore (skipFirestore=true) to avoid overwriting
+                // The store will be updated from initializeDailyHabits which loads all habits
                 const isCompleteInFirestore = !!progress[habitId];
                 if (currentHabit && isCompleteInFirestore !== currentHabit.isCompleted) {
-                    await setHabitCompleted(habitId, isCompleteInFirestore);
+                    await setHabitCompleted(habitId, isCompleteInFirestore, true); // skipFirestore=true
                 }
             }
         } catch (error) {
@@ -79,10 +81,36 @@ export const WaterTracker: React.FC<WaterTrackerProps> = ({ habitId, onUpdate })
             // This will trigger a re-render and update the progress calculation
             await setHabitCompleted(habitId, isComplete, true);
             
-            // Then save to Firestore with water count (single save operation)
-            const progress: Record<string, boolean | number | string> = await firestoreService.getDailyProgress(user.uid, today) || {};
+            // Get ALL current habits from store to preserve them
+            // Use the habits from the hook that's already imported
+            const currentHabits = habits;
+            
+            // Build complete progress map with ALL habits
+            const progress: Record<string, boolean | number | string> = currentHabits.reduce((acc, habit) => ({
+                ...acc,
+                [habit.id]: habit.isCompleted
+            }), {});
+            
+            // Get existing progress to preserve additional data (like notes, bedtime, etc.)
+            try {
+                const existingProgress = await firestoreService.getDailyProgress(user.uid, today);
+                if (existingProgress) {
+                    // Merge existing data (notes, bedtime, etc.) with current habits
+                    Object.keys(existingProgress).forEach(key => {
+                        // Preserve non-habit keys (like notes, bedtime, etc.)
+                        if (!key.match(/^\d+$/)) {
+                            progress[key] = existingProgress[key];
+                        }
+                    });
+                }
+            } catch (error) {
+                // If can't get existing progress, continue with just habits
+            }
+            
+            // Add water-specific data (override the habit completion status and add water count)
             progress[habitId] = isComplete;
             progress[`${habitId}_water`] = newGlasses;
+            
             try {
                 await firestoreService.saveDailyProgress(user.uid, today, progress);
             } catch (error) {

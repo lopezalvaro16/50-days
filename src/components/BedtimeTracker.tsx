@@ -50,7 +50,32 @@ export const BedtimeTracker: React.FC<BedtimeTrackerProps> = ({ habitId, onUpdat
             if (!user) return;
 
             const today = getArgentinaDateString();
-            const progress = await firestoreService.getDailyProgress(user.uid, today) || {};
+            
+            // Get ALL current habits from store to preserve them
+            const { useHabitStore } = require('../store/habitStore');
+            const currentHabits = useHabitStore.getState().habits;
+            
+            // Build complete progress map with ALL habits
+            const progress: Record<string, boolean | number | string> = currentHabits.reduce((acc: Record<string, boolean | number | string>, habit: any) => ({
+                ...acc,
+                [habit.id]: habit.isCompleted
+            }), {} as Record<string, boolean | number | string>);
+            
+            // Get existing progress to preserve additional data (like water count, notes, etc.)
+            try {
+                const existingProgress = await firestoreService.getDailyProgress(user.uid, today);
+                if (existingProgress) {
+                    // Merge existing data (water count, notes, etc.) with current habits
+                    Object.keys(existingProgress).forEach(key => {
+                        // Preserve non-habit keys (like water count, notes, etc.)
+                        if (!key.match(/^\d+$/)) {
+                            progress[key] = existingProgress[key];
+                        }
+                    });
+                }
+            } catch (error) {
+                // If can't get existing progress, continue with just habits
+            }
             
             const bedtimeHour = bedtimeDate.getHours();
             const isOnTime = bedtimeHour >= TARGET_BEDTIME - BEDTIME_WINDOW && 

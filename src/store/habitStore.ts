@@ -179,19 +179,31 @@ export const useHabitStore = create<HabitState>((set, get) => ({
             return;
         }
 
-        // Sync with Firestore - preserve existing data (like water count)
+        // Sync with Firestore - preserve existing data (like water count, notes, etc.)
         const { habits } = get();
         const today = getArgentinaDateString();
 
         try {
-            // Get existing progress to preserve additional data (like water count)
+            // Get existing progress to preserve additional data (like water count, notes, bedtime, etc.)
             const existingProgress = await firestoreService.getDailyProgress(user.uid, today) || {};
 
-            // Update habits map while preserving additional data
-            const habitsMap: Record<string, boolean | number | string> = { ...existingProgress };
-            habits.forEach(habit => {
-                habitsMap[habit.id] = habit.isCompleted;
+            // Build complete progress map starting with ALL habits from store
+            // This ensures we always save the complete state, not just what's in Firebase
+            const habitsMap: Record<string, boolean | number | string> = habits.reduce((acc, habit) => ({
+                ...acc,
+                [habit.id]: habit.isCompleted
+            }), {} as Record<string, boolean | number | string>);
+            
+            // Preserve additional data from existing progress (water count, notes, bedtime, etc.)
+            Object.keys(existingProgress).forEach(key => {
+                // Preserve non-habit keys (like water count, notes, bedtime, etc.)
+                if (!key.match(/^\d+$/)) {
+                    habitsMap[key] = existingProgress[key];
+                }
             });
+            
+            // Ensure the specific habit that was changed is set correctly
+            habitsMap[id] = completed;
 
             try {
                 await firestoreService.saveDailyProgress(user.uid, today, habitsMap);

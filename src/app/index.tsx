@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, Platform, StatusBar } from 'react-native';
 import { useRouter } from 'expo-router';
 import { COLORS, SPACING, SIZES } from '../constants/theme';
 import { Button } from '../components/Button';
@@ -31,37 +31,40 @@ export default function WelcomeScreen() {
     // Only render welcome screen if user is definitely not authenticated
 
     return (
-        <View style={styles.container}>
-            <View style={styles.content}>
-                <View style={styles.iconContainer}>
-                    <Flame size={64} color={COLORS.primary} fill={COLORS.primary} />
+        <SafeAreaView style={styles.safeArea}>
+            <StatusBar barStyle="dark-content" />
+            <View style={styles.container}>
+                <View style={styles.content}>
+                    <View style={styles.iconContainer}>
+                        <Flame size={64} color={COLORS.primary} fill={COLORS.primary} />
+                    </View>
+
+                    <Text style={styles.title}>PROYECTO 50</Text>
+                    <Text style={styles.subtitle}>
+                        50 días. 7 hábitos. Sin excusas.{'\n'}
+                        Transformá tu vida.
+                    </Text>
+
+                    <View style={styles.divider} />
+
+                    <View style={styles.featureList}>
+                        <FeatureItem text="Construí disciplina" />
+                        <FeatureItem text="Seguí tu progreso" />
+                        <FeatureItem text="Unite a la élite" />
+                    </View>
                 </View>
 
-                <Text style={styles.title}>PROYECTO 50</Text>
-                <Text style={styles.subtitle}>
-                    50 días. 7 hábitos. Sin excusas.{'\n'}
-                    Transformá tu vida.
-                </Text>
-
-                <View style={styles.divider} />
-
-                <View style={styles.featureList}>
-                    <FeatureItem text="Construí disciplina" />
-                    <FeatureItem text="Seguí tu progreso" />
-                    <FeatureItem text="Unite a la élite" />
+                <View style={styles.footer}>
+                    <Button
+                        title="ACEPTAR EL RETO"
+                        onPress={() => router.push('/login')}
+                    />
+                    <Text style={styles.disclaimer}>
+                        Al continuar, te comprometés con las reglas del reto.
+                    </Text>
                 </View>
             </View>
-
-            <View style={styles.footer}>
-                <Button
-                    title="ACEPTAR EL RETO"
-                    onPress={() => router.push('/login')}
-                />
-                <Text style={styles.disclaimer}>
-                    Al continuar, te comprometés con las reglas del reto.
-                </Text>
-            </View>
-        </View>
+        </SafeAreaView>
     );
 }
 
@@ -73,10 +76,16 @@ const FeatureItem = ({ text }: { text: string }) => (
 );
 
 const styles = StyleSheet.create({
+    safeArea: {
+        flex: 1,
+        backgroundColor: COLORS.background,
+        paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+    },
     container: {
         flex: 1,
         backgroundColor: COLORS.background,
-        padding: SPACING.l,
+        paddingHorizontal: SPACING.xl,
+        paddingVertical: SPACING.xxl,
         justifyContent: 'space-between',
     },
     content: {

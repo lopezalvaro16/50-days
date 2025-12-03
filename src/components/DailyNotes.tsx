@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
 import { SPACING, SIZES } from '../constants/theme';
 import { useThemeStore } from '../store/themeStore';
+import { useHabitStore } from '../store/habitStore';
 import { BookOpen, Save } from 'lucide-react-native';
 import { firestoreService } from '../services/firestoreService';
 import { authService } from '../services/authService';
@@ -9,6 +10,7 @@ import { getArgentinaDateString } from '../utils/dateUtils';
 
 export const DailyNotes: React.FC = () => {
     const { colors } = useThemeStore();
+    const { habits } = useHabitStore();
     const [note, setNote] = useState('');
     const [isSaving, setIsSaving] = useState(false);
     const [saved, setSaved] = useState(false);
@@ -43,8 +45,30 @@ export const DailyNotes: React.FC = () => {
 
             setIsSaving(true);
             const today = getArgentinaDateString();
-            const progress: Record<string, boolean | number | string> = await firestoreService.getDailyProgress(user.uid, today) || {};
             
+            // Build complete progress map with ALL habits from store to preserve them
+            const progress: Record<string, boolean | number | string> = habits.reduce((acc, habit) => ({
+                ...acc,
+                [habit.id]: habit.isCompleted
+            }), {});
+            
+            // Get existing progress to preserve additional data (like water count, bedtime, etc.)
+            try {
+                const existingProgress = await firestoreService.getDailyProgress(user.uid, today);
+                if (existingProgress) {
+                    // Merge existing data (water count, bedtime, etc.) with current habits
+                    Object.keys(existingProgress).forEach(key => {
+                        // Preserve non-habit keys (like water count, bedtime, etc.)
+                        if (!key.match(/^\d+$/)) {
+                            progress[key] = existingProgress[key];
+                        }
+                    });
+                }
+            } catch (error) {
+                // If can't get existing progress, continue with just habits
+            }
+            
+            // Add/update the note
             progress['daily_note'] = note;
 
             await firestoreService.saveDailyProgress(user.uid, today, progress);
