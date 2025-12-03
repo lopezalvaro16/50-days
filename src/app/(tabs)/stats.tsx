@@ -10,6 +10,7 @@ import { ProgressCalendar } from '../../components/ProgressCalendar';
 import { WeeklyChart } from '../../components/WeeklyChart';
 import { InsightsCard } from '../../components/InsightsCard';
 import { ShareProgress } from '../../components/ShareProgress';
+import { DaySummaryModal } from '../../components/DaySummaryModal';
 import { getArgentinaDateString, getCalendarDaysSince } from '../../utils/dateUtils';
 
 export default function StatsScreen() {
@@ -176,6 +177,10 @@ export default function StatsScreen() {
     // Calculate today's progress for sharing
     const [todayProgress, setTodayProgress] = useState(0);
     
+    // Day summary modal state
+    const [selectedDate, setSelectedDate] = useState<string | null>(null);
+    const [isModalVisible, setIsModalVisible] = useState(false);
+    
     useEffect(() => {
         loadTodayProgress();
     }, []);
@@ -213,7 +218,12 @@ export default function StatsScreen() {
                 <WeeklyChart days={7} />
 
                 {/* Progress Calendar */}
-                <ProgressCalendar />
+                <ProgressCalendar 
+                    onDayPress={(date) => {
+                        setSelectedDate(date);
+                        setIsModalVisible(true);
+                    }}
+                />
 
                 {/* Progress Bar */}
                 <View style={styles.progressSection}>
@@ -382,6 +392,16 @@ export default function StatsScreen() {
                     </View>
                 </View>
             </ScrollView>
+            
+            {/* Day Summary Modal */}
+            <DaySummaryModal
+                visible={isModalVisible}
+                date={selectedDate}
+                onClose={() => {
+                    setIsModalVisible(false);
+                    setSelectedDate(null);
+                }}
+            />
         </SafeAreaView>
     );
 }

@@ -16,7 +16,7 @@ import {
 import { Habit } from '../store/habitStore';
 
 // Icon mapping
-const iconMap: { [key: string]: React.ComponentType<any> } = {
+export const iconMap: { [key: string]: React.ComponentType<any> } = {
     Sunrise,
     Dumbbell,
     Droplet,
