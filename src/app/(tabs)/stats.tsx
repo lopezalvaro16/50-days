@@ -1,16 +1,17 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, SafeAreaView, Platform, StatusBar, AppState } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, SafeAreaView, Platform, StatusBar, AppState, TouchableOpacity } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { SPACING, SIZES } from '../../constants/theme';
 import { useThemeStore } from '../../store/themeStore';
 import { firestoreService } from '../../services/firestoreService';
 import { authService } from '../../services/authService';
-import { Flame, Trophy, Target, Calendar, Zap, Gem, Crown } from 'lucide-react-native';
+import { Flame, Trophy, Target, Calendar, Zap, Gem, Crown, Star } from 'lucide-react-native';
 import { ProgressCalendar } from '../../components/ProgressCalendar';
 import { WeeklyChart } from '../../components/WeeklyChart';
 import { InsightsCard } from '../../components/InsightsCard';
 import { ShareProgress } from '../../components/ShareProgress';
 import { DaySummaryModal } from '../../components/DaySummaryModal';
+import { BadgeInfoModal } from '../../components/BadgeInfoModal';
 import { getArgentinaDateString, getCalendarDaysSince } from '../../utils/dateUtils';
 
 export default function StatsScreen() {
@@ -181,6 +182,10 @@ export default function StatsScreen() {
     const [selectedDate, setSelectedDate] = useState<string | null>(null);
     const [isModalVisible, setIsModalVisible] = useState(false);
     
+    // Badge info modal state
+    const [selectedBadgeId, setSelectedBadgeId] = useState<string | null>(null);
+    const [isBadgeModalVisible, setIsBadgeModalVisible] = useState(false);
+    
     useEffect(() => {
         loadTodayProgress();
     }, []);
@@ -290,19 +295,26 @@ export default function StatsScreen() {
                 {/* Achievement Badges */}
                 <Text style={[styles.sectionTitle, { color: colors.text }]}>Logros</Text>
                 <View style={styles.badgesContainer}>
-                    <View style={[
-                        styles.badge,
-                        {
-                            backgroundColor: colors.surface,
-                            borderColor: colors.border,
-                            borderBottomWidth: 3,
-                            borderRightWidth: 3,
-                        },
-                        stats.currentStreak >= 3 && {
-                            backgroundColor: colors.primary + '15',
-                            borderColor: colors.primary
-                        }
-                    ]}>
+                    <TouchableOpacity
+                        style={[
+                            styles.badge,
+                            {
+                                backgroundColor: colors.surface,
+                                borderColor: colors.border,
+                                borderBottomWidth: 3,
+                                borderRightWidth: 3,
+                            },
+                            stats.currentStreak >= 3 && {
+                                backgroundColor: colors.primary + '15',
+                                borderColor: colors.primary
+                            }
+                        ]}
+                        onPress={() => {
+                            setSelectedBadgeId('3-days');
+                            setIsBadgeModalVisible(true);
+                        }}
+                        activeOpacity={0.7}
+                    >
                         <Flame
                             size={28}
                             color={stats.currentStreak >= 3 ? colors.primary : colors.textSecondary}
@@ -314,20 +326,27 @@ export default function StatsScreen() {
                                 color: stats.currentStreak >= 3 ? colors.primary : colors.textSecondary
                             }
                         ]}>3 Días</Text>
-                    </View>
-                    <View style={[
-                        styles.badge,
-                        {
-                            backgroundColor: colors.surface,
-                            borderColor: colors.border,
-                            borderBottomWidth: 3,
-                            borderRightWidth: 3,
-                        },
-                        stats.longestStreak >= 7 && {
-                            backgroundColor: colors.primary + '15',
-                            borderColor: colors.primary
-                        }
-                    ]}>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[
+                            styles.badge,
+                            {
+                                backgroundColor: colors.surface,
+                                borderColor: colors.border,
+                                borderBottomWidth: 3,
+                                borderRightWidth: 3,
+                            },
+                            stats.longestStreak >= 7 && {
+                                backgroundColor: colors.primary + '15',
+                                borderColor: colors.primary
+                            }
+                        ]}
+                        onPress={() => {
+                            setSelectedBadgeId('week');
+                            setIsBadgeModalVisible(true);
+                        }}
+                        activeOpacity={0.7}
+                    >
                         <Zap
                             size={28}
                             color={stats.longestStreak >= 7 ? colors.primary : colors.textSecondary}
@@ -339,20 +358,27 @@ export default function StatsScreen() {
                                 color: stats.longestStreak >= 7 ? colors.primary : colors.textSecondary
                             }
                         ]}>Semana</Text>
-                    </View>
-                    <View style={[
-                        styles.badge,
-                        {
-                            backgroundColor: colors.surface,
-                            borderColor: colors.border,
-                            borderBottomWidth: 3,
-                            borderRightWidth: 3,
-                        },
-                        stats.longestStreak >= 14 && {
-                            backgroundColor: colors.primary + '15',
-                            borderColor: colors.primary
-                        }
-                    ]}>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[
+                            styles.badge,
+                            {
+                                backgroundColor: colors.surface,
+                                borderColor: colors.border,
+                                borderBottomWidth: 3,
+                                borderRightWidth: 3,
+                            },
+                            stats.longestStreak >= 14 && {
+                                backgroundColor: colors.primary + '15',
+                                borderColor: colors.primary
+                            }
+                        ]}
+                        onPress={() => {
+                            setSelectedBadgeId('2-weeks');
+                            setIsBadgeModalVisible(true);
+                        }}
+                        activeOpacity={0.7}
+                    >
                         <Gem
                             size={28}
                             color={stats.longestStreak >= 14 ? colors.primary : colors.textSecondary}
@@ -364,20 +390,27 @@ export default function StatsScreen() {
                                 color: stats.longestStreak >= 14 ? colors.primary : colors.textSecondary
                             }
                         ]}>2 Semanas</Text>
-                    </View>
-                    <View style={[
-                        styles.badge,
-                        {
-                            backgroundColor: colors.surface,
-                            borderColor: colors.border,
-                            borderBottomWidth: 3,
-                            borderRightWidth: 3,
-                        },
-                        stats.longestStreak >= 30 && {
-                            backgroundColor: colors.primary + '15',
-                            borderColor: colors.primary
-                        }
-                    ]}>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[
+                            styles.badge,
+                            {
+                                backgroundColor: colors.surface,
+                                borderColor: colors.border,
+                                borderBottomWidth: 3,
+                                borderRightWidth: 3,
+                            },
+                            stats.longestStreak >= 30 && {
+                                backgroundColor: colors.primary + '15',
+                                borderColor: colors.primary
+                            }
+                        ]}
+                        onPress={() => {
+                            setSelectedBadgeId('legend');
+                            setIsBadgeModalVisible(true);
+                        }}
+                        activeOpacity={0.7}
+                    >
                         <Crown
                             size={28}
                             color={stats.longestStreak >= 30 ? colors.primary : colors.textSecondary}
@@ -389,7 +422,71 @@ export default function StatsScreen() {
                                 color: stats.longestStreak >= 30 ? colors.primary : colors.textSecondary
                             }
                         ]}>Leyenda</Text>
-                    </View>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[
+                            styles.badge,
+                            {
+                                backgroundColor: colors.surface,
+                                borderColor: colors.border,
+                                borderBottomWidth: 3,
+                                borderRightWidth: 3,
+                            },
+                            stats.longestStreak >= 21 && {
+                                backgroundColor: colors.primary + '15',
+                                borderColor: colors.primary
+                            }
+                        ]}
+                        onPress={() => {
+                            setSelectedBadgeId('3-weeks');
+                            setIsBadgeModalVisible(true);
+                        }}
+                        activeOpacity={0.7}
+                    >
+                        <Star
+                            size={28}
+                            color={stats.longestStreak >= 21 ? colors.primary : colors.textSecondary}
+                            fill={stats.longestStreak >= 21 ? colors.primary : 'transparent'}
+                        />
+                        <Text style={[
+                            styles.badgeText,
+                            {
+                                color: stats.longestStreak >= 21 ? colors.primary : colors.textSecondary
+                            }
+                        ]}>Maestro</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[
+                            styles.badge,
+                            {
+                                backgroundColor: colors.surface,
+                                borderColor: colors.border,
+                                borderBottomWidth: 3,
+                                borderRightWidth: 3,
+                            },
+                            stats.daysSinceStart >= 50 && {
+                                backgroundColor: colors.primary + '15',
+                                borderColor: colors.primary
+                            }
+                        ]}
+                        onPress={() => {
+                            setSelectedBadgeId('champion');
+                            setIsBadgeModalVisible(true);
+                        }}
+                        activeOpacity={0.7}
+                    >
+                        <Trophy
+                            size={28}
+                            color={stats.daysSinceStart >= 50 ? colors.primary : colors.textSecondary}
+                            fill={stats.daysSinceStart >= 50 ? colors.primary : 'transparent'}
+                        />
+                        <Text style={[
+                            styles.badgeText,
+                            {
+                                color: stats.daysSinceStart >= 50 ? colors.primary : colors.textSecondary
+                            }
+                        ]}>Campeón</Text>
+                    </TouchableOpacity>
                 </View>
             </ScrollView>
             
@@ -400,6 +497,25 @@ export default function StatsScreen() {
                 onClose={() => {
                     setIsModalVisible(false);
                     setSelectedDate(null);
+                }}
+            />
+            
+            {/* Badge Info Modal */}
+            <BadgeInfoModal
+                visible={isBadgeModalVisible}
+                badgeId={selectedBadgeId || ''}
+                isUnlocked={
+                    selectedBadgeId === '3-days' ? stats.currentStreak >= 3 :
+                    selectedBadgeId === 'week' ? stats.longestStreak >= 7 :
+                    selectedBadgeId === '2-weeks' ? stats.longestStreak >= 14 :
+                    selectedBadgeId === '3-weeks' ? stats.longestStreak >= 21 :
+                    selectedBadgeId === 'legend' ? stats.longestStreak >= 30 :
+                    selectedBadgeId === 'champion' ? stats.daysSinceStart >= 50 :
+                    false
+                }
+                onClose={() => {
+                    setIsBadgeModalVisible(false);
+                    setSelectedBadgeId(null);
                 }}
             />
         </SafeAreaView>
@@ -498,16 +614,18 @@ const styles = StyleSheet.create({
     badgesContainer: {
         flexDirection: 'row',
         flexWrap: 'wrap',
+        justifyContent: 'center',
         marginBottom: SPACING.xl,
     },
     badge: {
-        width: '22%',
+        width: '30%',
+        maxWidth: 100,
         aspectRatio: 1,
         borderRadius: SIZES.borderRadius,
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 2,
-        marginRight: SPACING.m,
+        marginHorizontal: SPACING.xs,
         marginBottom: SPACING.m,
         gap: SPACING.xs,
     },
