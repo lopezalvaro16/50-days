@@ -18,18 +18,71 @@ export default function SettingsScreen() {
         if (user) {
             setUserEmail(user.email || '');
         }
-        // Check notification permissions status here if needed
+        loadNotificationStatus();
     }, []);
 
-    const toggleNotifications = async (value: boolean) => {
-        if (value) {
-            Alert.alert(
-                'Notificaciones no disponibles',
-                'Las notificaciones requieren una "Development Build" en esta versión de Expo. Esta función estará disponible en la versión final.'
-            );
-            return;
+    const loadNotificationStatus = async () => {
+        try {
+            const saved = await AsyncStorage.getItem('notifications_enabled');
+            const isEnabled = saved === 'true';
+            setNotificationsEnabled(isEnabled);
+            
+            // Check actual permission status
+            const hasPermission = await notificationService.getNotificationPermissions();
+            if (isEnabled && !hasPermission) {
+                // User had it enabled but lost permission
+                setNotificationsEnabled(false);
+                await AsyncStorage.setItem('notifications_enabled', 'false');
+            }
+        } catch (error) {
+            console.log('Error loading notification status:', error);
         }
-        setNotificationsEnabled(value);
+    };
+
+    const toggleNotifications = async (value: boolean) => {
+        try {
+            if (value) {
+                // Check if running in Expo Go
+                const Constants = require('expo-constants').default;
+                const isExpoGo = Constants.executionEnvironment === 'storeClient';
+                
+                if (isExpoGo) {
+                    Alert.alert(
+                        'Notificaciones no disponibles',
+                        'Las notificaciones requieren un "Development Build" o build de producción. No están disponibles en Expo Go. Esta función funcionará cuando hagas un build nativo con EAS.'
+                    );
+                    setNotificationsEnabled(false);
+                    return;
+                }
+
+                // Request permissions
+                const hasPermission = await notificationService.getNotificationPermissions();
+                if (!hasPermission) {
+                    const token = await notificationService.registerForPushNotificationsAsync();
+                    if (!token) {
+                        Alert.alert(
+                            'Permisos requeridos',
+                            'Necesitamos permisos para enviarte recordatorios. Por favor, activá las notificaciones en la configuración de tu dispositivo.'
+                        );
+                        setNotificationsEnabled(false);
+                        return;
+                    }
+                }
+                
+                // Schedule daily reminder (default 9:00 AM)
+                await notificationService.scheduleDailyReminder(9, 0);
+                await AsyncStorage.setItem('notifications_enabled', 'true');
+                setNotificationsEnabled(true);
+            } else {
+                // Cancel notifications
+                await notificationService.cancelAllNotifications();
+                await AsyncStorage.setItem('notifications_enabled', 'false');
+                setNotificationsEnabled(false);
+            }
+        } catch (error) {
+            Alert.alert('Error', 'No se pudo cambiar el estado de las notificaciones.');
+            setNotificationsEnabled(!value); // Revert the change
+        }
     };
 
     const handleSignOut = async () => {

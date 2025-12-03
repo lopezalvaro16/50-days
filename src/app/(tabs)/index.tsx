@@ -130,15 +130,10 @@ export default function DashboardScreen() {
 
     // Cargar datos desde Firestore
     useEffect(() => {
-        console.log('🚀 [DASHBOARD] ========================================');
-        console.log('🚀 [DASHBOARD] INICIANDO CARGA DE DATOS DEL DASHBOARD');
-        console.log('🚀 [DASHBOARD] ========================================');
-        
         async function loadStats() {
             try {
                 const user = authService.getCurrentUser();
                 if (!user) {
-                    console.log('❌ [DASHBOARD] No hay usuario autenticado');
                     return;
                 }
 
@@ -148,12 +143,8 @@ export default function DashboardScreen() {
                 } catch (syncError) {
                     // Silently fail - offline sync will retry later
                 }
-
-                console.log('📱 [DASHBOARD] Cargando datos iniciales del usuario...');
-                console.log('  - User UID:', user.uid);
-                console.log('  - User Email:', user.email);
                 
-                // Cargar TODOS los datos del usuario para logs completos
+                // Cargar TODOS los datos del usuario
                 const allUserData = await firestoreService.getAllUserData(user.uid);
                 
                 // Cargar también todos los datos offline
@@ -163,16 +154,11 @@ export default function DashboardScreen() {
                 let profile = await firestoreService.getUserProfile(user.uid);
                 
                 if (!profile && user.email) {
-                    console.log('⚠️ [DASHBOARD] El perfil no existe, creándolo automáticamente...');
-                    
                     // Si ya existe progreso, usar la primera fecha como startDate
                     let startDate: Date | null = null;
                     
                     if (allUserData.firstProgressDate) {
-                        console.log('📅 [DASHBOARD] Se encontró progreso previo, usando primera fecha como startDate:', allUserData.firstProgressDate);
                         startDate = parseArgentinaDate(allUserData.firstProgressDate);
-                        console.log('  - startDate calculado desde primera fecha:', startDate);
-                        console.log('  - startDate ISO:', startDate.toISOString());
                     }
                     
                     // Crear perfil con el startDate correcto
@@ -189,11 +175,6 @@ export default function DashboardScreen() {
                     const firstProgressDateStr = allUserData.firstProgressDate;
                     
                     if (firstProgressDateStr < profileStartDateStr) {
-                        console.log('⚠️ [DASHBOARD] El startDate del perfil es más reciente que el primer progreso');
-                        console.log('  - startDate del perfil:', profileStartDateStr);
-                        console.log('  - Primera fecha de progreso:', firstProgressDateStr);
-                        console.log('  - Corrigiendo startDate del perfil...');
-                        
                         const correctedStartDate = parseArgentinaDate(firstProgressDateStr);
                         await firestoreService.updateStartDate(user.uid, correctedStartDate);
                         profile = await firestoreService.getUserProfile(user.uid);
@@ -201,16 +182,6 @@ export default function DashboardScreen() {
                 }
 
                 if (profile) {
-                    console.log('📊 [DASHBOARD] Perfil recibido:');
-                    console.log('  - startDate:', profile.startDate);
-                    console.log('  - startDate tipo:', typeof profile.startDate);
-                    console.log('  - startDate es Date?', profile.startDate instanceof Date);
-                    console.log('  - startDate ISO:', profile.startDate?.toISOString?.());
-                    console.log('  - currentStreak:', profile.currentStreak);
-                    console.log('  - longestStreak:', profile.longestStreak);
-                    console.log('  - totalDaysCompleted:', profile.totalDaysCompleted);
-                    console.log('  - lastCompletedDate:', profile.lastCompletedDate);
-                    
                     setCurrentStreak(profile.currentStreak || 0);
 
                     // Save user stats for completion modal
@@ -222,26 +193,12 @@ export default function DashboardScreen() {
 
                     // Calculate calendar days since start (inclusive, day 1 is start date)
                     const start = new Date(profile.startDate);
-                    console.log('📅 [DASHBOARD] Calculando días desde inicio...');
-                    console.log('  - start (Date object):', start);
-                    console.log('  - start ISO:', start.toISOString());
-                    console.log('  - start timestamp:', start.getTime());
-                    
                     const dayCount = getCalendarDaysSince(start);
-                    console.log('  - Días calculados:', dayCount);
-                    console.log('  - Día del reto establecido:', dayCount);
-                    
                     setDayNumber(dayCount);
-                    console.log('✅ [DASHBOARD] Datos cargados exitosamente');
-                } else {
-                    console.log('❌ [DASHBOARD] No se pudo cargar el perfil');
                 }
             } catch (error) {
-                console.error('❌ [DASHBOARD] Error al cargar datos:', error);
+                console.error('Error al cargar datos:', error);
             }
-            console.log('🏁 [DASHBOARD] ========================================');
-            console.log('🏁 [DASHBOARD] FIN DE CARGA DE DATOS DEL DASHBOARD');
-            console.log('🏁 [DASHBOARD] ========================================');
         }
 
         loadStats();
@@ -316,7 +273,6 @@ export default function DashboardScreen() {
                             setShowCelebration(true);
                         }
                     } else {
-                        console.log('✅ [DASHBOARD] Modal de celebración ya mostrado hoy, omitiendo...');
                     }
                 } catch (error) {
                     console.error('❌ [DASHBOARD] Error verificando fecha de celebración:', error);
@@ -362,15 +318,16 @@ export default function DashboardScreen() {
     };
 
     // TEST FUNCTION - Remove before production
-    const testCompletionModal = () => {
-        setUserStats({
-            longestStreak: 45,
-            totalDaysCompleted: 50,
-            currentStreak: 50,
-        });
-        setDayNumber(50);
-        setShowCompletion(true);
-    };
+    // TEST FUNCTION - Commented out for production
+    // const testCompletionModal = () => {
+    //     setUserStats({
+    //         longestStreak: 45,
+    //         totalDaysCompleted: 50,
+    //         currentStreak: 50,
+    //     });
+    //     setDayNumber(50);
+    //     setShowCompletion(true);
+    // };
 
     return (
         <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
@@ -396,13 +353,13 @@ export default function DashboardScreen() {
                         <Text style={[styles.subGreeting, { color: colors.textSecondary }]}>¡Mantené la racha!</Text>
                     </View>
 
-                    {/* TEST BUTTON - Remove before production */}
-                    <TouchableOpacity
+                    {/* TEST BUTTON - Commented out for production */}
+                    {/* <TouchableOpacity
                         style={[styles.testButton, { backgroundColor: colors.primary }]}
                         onPress={testCompletionModal}
                     >
                         <Text style={styles.testButtonText}>🧪 Test Día 50</Text>
-                    </TouchableOpacity>
+                    </TouchableOpacity> */}
 
                     {/* Streak */}
                     <View style={[
@@ -583,16 +540,16 @@ const styles = StyleSheet.create({
     habitList: {
         gap: SPACING.s,
     },
-    testButton: {
-        paddingVertical: SPACING.s,
-        paddingHorizontal: SPACING.m,
-        borderRadius: SIZES.borderRadius,
-        marginTop: SPACING.s,
-    },
-    testButtonText: {
-        color: '#FFFFFF',
-        fontSize: 14,
-        fontFamily: 'PatrickHand-Regular',
-        fontWeight: 'bold',
-    },
+    // testButton: {
+    //     paddingVertical: SPACING.s,
+    //     paddingHorizontal: SPACING.m,
+    //     borderRadius: SIZES.borderRadius,
+    //     marginTop: SPACING.s,
+    // },
+    // testButtonText: {
+    //     color: '#FFFFFF',
+    //     fontSize: 14,
+    //     fontFamily: 'PatrickHand-Regular',
+    //     fontWeight: 'bold',
+    // },
 });
