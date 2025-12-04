@@ -15,6 +15,7 @@ import { firestoreService } from '../services/firestoreService';
 import { authService } from '../services/authService';
 import { offlineService } from '../services/offlineService';
 import { notificationService } from '../services/notificationService';
+import { CustomSplashScreen } from '../components/CustomSplashScreen';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Prevent splash screen from auto-hiding - we'll hide it manually after our loading screen
@@ -242,21 +243,22 @@ export default function RootLayout() {
         }, 300);
     }, [fontsLoaded, isLoading, user, showLoading]);
 
-    // Step 1: Show static splash (logo only) for fixed time, then transition to loading screen
-    // Splash should show for 1.5-2 seconds before showing loading screen with progress bar
+    // Step 1: Hide native splash immediately and show custom splash screen
+    // This ensures our custom splash (with proper sizing) shows immediately
     useEffect(() => {
         if (!hasShownLoadingRef.current) {
-            // Keep splash visible for fixed time (1.5 seconds)
+            // Hide native splash immediately (it's too small)
+            SplashScreen.hideAsync().catch(() => {
+                // Ignore errors
+            });
+            
+            // Show custom splash for fixed time (1.5 seconds)
             const splashTimer = setTimeout(() => {
-                // Hide native splash
-                SplashScreen.hideAsync().catch(() => {
-                    // Ignore errors
-                });
-                // Show loading screen with progress bar (Step 2)
+                // Transition to loading screen with progress bar (Step 2)
                 setShowSplash(false);
                 setShowLoading(true);
                 hasShownLoadingRef.current = true;
-            }, 1500); // 1.5 seconds for static splash
+            }, 1500); // 1.5 seconds for custom splash
 
             return () => clearTimeout(splashTimer);
         }
@@ -350,6 +352,25 @@ export default function RootLayout() {
                     <Stack.Screen name="(tabs)" />
                 </Stack>
             </View>
+
+            {/* Custom Splash Screen - shows immediately, full screen */}
+            {showSplash && (
+                <View 
+                    style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        zIndex: 999999, // Highest z-index
+                        backgroundColor: '#F9F7F2',
+                        elevation: 99999, // For Android
+                    }}
+                    pointerEvents="auto"
+                >
+                    <CustomSplashScreen />
+                </View>
+            )}
 
             {/* Loading screen covers Stack until navigation is complete - prevents flash */}
             {/* CRITICAL: Keep loading visible until navigation is fully ready */}

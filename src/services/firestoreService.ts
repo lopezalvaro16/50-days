@@ -231,4 +231,41 @@ export const firestoreService = {
 
         return allData;
     },
+
+    // Resetear toda la cuenta del usuario
+    resetUserAccount: async (uid: string, email: string) => {
+        try {
+            // 1. Borrar todos los documentos de dailyProgress
+            const dailyProgressRef = collection(db, 'users', uid, 'dailyProgress');
+            const dailyProgressSnapshot = await getDocs(query(dailyProgressRef));
+            
+            const deletePromises = dailyProgressSnapshot.docs.map(docSnap => 
+                deleteDoc(doc(db, 'users', uid, 'dailyProgress', docSnap.id))
+            );
+            await Promise.all(deletePromises);
+
+            // 2. Resetear el perfil del usuario a valores iniciales
+            const userRef = doc(db, 'users', uid);
+            const todayStr = getArgentinaDateString();
+            const normalizedStartDate = parseArgentinaDate(todayStr);
+            
+            const resetProfile: UserProfile = {
+                uid,
+                email,
+                displayName: email.split('@')[0],
+                startDate: normalizedStartDate,
+                currentStreak: 0,
+                longestStreak: 0,
+                totalDaysCompleted: 0,
+                badges: [],
+            };
+            
+            await setDoc(userRef, resetProfile);
+            
+            return true;
+        } catch (error) {
+            console.error('Error reseteando cuenta:', error);
+            throw error;
+        }
+    },
 };

@@ -4,14 +4,19 @@ import { SPACING, SIZES } from '../../constants/theme';
 import { useThemeStore } from '../../store/themeStore';
 import { authService } from '../../services/authService';
 import { notificationService } from '../../services/notificationService';
+import { firestoreService } from '../../services/firestoreService';
+import { offlineService } from '../../services/offlineService';
+import { useHabitStore } from '../../store/habitStore';
 import { router } from 'expo-router';
-import { Bell, LogOut, Moon, User, ChevronRight, RotateCcw } from 'lucide-react-native';
+import { Bell, LogOut, Moon, User, ChevronRight, RotateCcw, Trash2 } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function SettingsScreen() {
     const { colors, isDarkMode, toggleTheme } = useThemeStore();
+    const { initializeDailyHabits } = useHabitStore();
     const [notificationsEnabled, setNotificationsEnabled] = useState(false);
     const [userEmail, setUserEmail] = useState('');
+    const [isResetting, setIsResetting] = useState(false);
 
     useEffect(() => {
         const user = authService.getCurrentUser();
@@ -119,11 +124,116 @@ export default function SettingsScreen() {
         );
     };
 
-    const SettingItem = ({ icon: Icon, title, value, type, onPress, color }: any) => (
+    const handleResetAccount = async () => {
+        // Primera confirmación
+        Alert.alert(
+            '⚠️ Resetear Cuenta',
+            'Esto borrará TODOS tus datos:\n\n• Todos los días completados\n• Todas las rachas\n• Todos los logros\n• Todas las notas\n• Todo el progreso\n\n¿Estás seguro?',
+            [
+                {
+                    text: 'Cancelar',
+                    style: 'cancel',
+                },
+                {
+                    text: 'Sí, resetear',
+                    style: 'destructive',
+                    onPress: () => {
+                        // Segunda confirmación
+                        Alert.alert(
+                            '⚠️ Última Confirmación',
+                            'Esta acción NO se puede deshacer. ¿Realmente querés borrar todo y empezar de cero?',
+                            [
+                                {
+                                    text: 'Cancelar',
+                                    style: 'cancel',
+                                },
+                                {
+                                    text: 'SÍ, BORRAR TODO',
+                                    style: 'destructive',
+                                    onPress: async () => {
+                                        setIsResetting(true);
+                                        try {
+                                            const user = authService.getCurrentUser();
+                                            if (!user || !user.email) {
+                                                Alert.alert('Error', 'No se pudo obtener la información del usuario.');
+                                                setIsResetting(false);
+                                                return;
+                                            }
+
+                                            // 1. Resetear datos en Firestore
+                                            await firestoreService.resetUserAccount(user.uid, user.email);
+
+                                            // 2. Limpiar AsyncStorage (excepto notificaciones y tema)
+                                            const notificationsEnabled = await AsyncStorage.getItem('notifications_enabled');
+                                            const themeMode = await AsyncStorage.getItem('theme_mode');
+                                            
+                                            // Limpiar todo AsyncStorage
+                                            await AsyncStorage.clear();
+                                            
+                                            // Restaurar preferencias del usuario
+                                            if (notificationsEnabled) {
+                                                await AsyncStorage.setItem('notifications_enabled', notificationsEnabled);
+                                            }
+                                            if (themeMode) {
+                                                await AsyncStorage.setItem('theme_mode', themeMode);
+                                            }
+
+                                            // 3. Limpiar datos offline
+                                            try {
+                                                const allKeys = await AsyncStorage.getAllKeys();
+                                                const offlineKeys = allKeys.filter(key => 
+                                                    key.startsWith('offline_progress_') || 
+                                                    key === 'pending_sync_dates'
+                                                );
+                                                await Promise.all(offlineKeys.map(key => AsyncStorage.removeItem(key)));
+                                            } catch (offlineError) {
+                                                // Silently fail
+                                            }
+
+                                            // 4. Resetear habitStore
+                                            await initializeDailyHabits();
+
+                                            // 5. Recargar la app
+                                            Alert.alert(
+                                                '✅ Cuenta Reseteada',
+                                                'Todos tus datos han sido borrados. La app se recargará ahora.',
+                                                [
+                                                    {
+                                                        text: 'OK',
+                                                        onPress: () => {
+                                                            router.replace('/(tabs)');
+                                                            // Forzar recarga
+                                                            setTimeout(() => {
+                                                                router.replace('/(tabs)');
+                                                            }, 500);
+                                                        },
+                                                    },
+                                                ]
+                                            );
+                                        } catch (error) {
+                                            console.error('Error reseteando cuenta:', error);
+                                            Alert.alert(
+                                                'Error',
+                                                'Hubo un error al resetear la cuenta. Por favor, intentá de nuevo.'
+                                            );
+                                        } finally {
+                                            setIsResetting(false);
+                                        }
+                                    },
+                                },
+                            ]
+                        );
+                    },
+                },
+            ]
+        );
+    };
+
+    const SettingItem = ({ icon: Icon, title, value, type, onPress, color, disabled }: any) => (
         <TouchableOpacity
-            style={styles.settingItem}
+            style={[styles.settingItem, disabled && styles.settingItemDisabled]}
             onPress={onPress}
-            disabled={type === 'switch'}
+            disabled={type === 'switch' || disabled}
         >
             <View style={styles.settingLeft}>
                 <View style={[styles.iconContainer, { backgroundColor: (color || colors.text) + '15' }]}>
@@ -193,6 +303,7 @@ export default function SettingsScreen() {
 
                 {/* Actions Section */}
                 <View style={styles.section}>
+                    <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>ACCIONES</Text>
                     <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                         <SettingItem
                             icon={RotateCcw}
@@ -200,6 +311,15 @@ export default function SettingsScreen() {
                             type="button"
                             onPress={handleResetOnboarding}
                             color={colors.primary}
+                        />
+                        <View style={[styles.separator, { backgroundColor: colors.surfaceHighlight }]} />
+                        <SettingItem
+                            icon={Trash2}
+                            title="Resetear Cuenta"
+                            type="button"
+                            onPress={handleResetAccount}
+                            color={colors.error}
+                            disabled={isResetting}
                         />
                         <View style={[styles.separator, { backgroundColor: colors.surfaceHighlight }]} />
                         <SettingItem
@@ -309,5 +429,8 @@ const styles = StyleSheet.create({
         fontSize: 12,
         fontFamily: 'PatrickHand-Regular',
         marginTop: 'auto',
+    },
+    settingItemDisabled: {
+        opacity: 0.5,
     },
 });

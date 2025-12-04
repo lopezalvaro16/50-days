@@ -10,7 +10,7 @@
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash.png",
-      "resizeMode": "contain",
+      "resizeMode": "cover",
       "backgroundColor": "#F9F7F2"
     },
     "ios": {
@@ -21,6 +21,15 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/icono.png",
         "backgroundColor": "#F9F7F2"
+      },
+      "splash": {
+        "image": "./assets/splash.png",
+        "resizeMode": "cover",
+        "backgroundColor": "#F9F7F2"
+      },
+      "notification": {
+        "icon": "./assets/icono-notification.png",
+        "color": "#FF231F7C"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
@@ -39,7 +48,7 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/icono.png",
+          "icon": "./assets/icono-notification.png",
           "color": "#FF231F7C",
           "sounds": []
         }
